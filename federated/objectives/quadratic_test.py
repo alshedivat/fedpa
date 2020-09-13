@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for quadratic objective functions."""
-import functools
 
 import jax.numpy as jnp
 import numpy as np
@@ -53,14 +52,14 @@ class QuadraticTests(absltest.TestCase):
         np.testing.assert_allclose(obj(jnp.stack([x1, x2])), [0.0, -1.0])
 
     def test_quadratic_grad(self):
-        rng = np.random.RandomState(seed=0)
+        np.random.seed(0)
 
         obj = Quadratic(
             A=jnp.asarray([[2.0, 1.0], [1.0, 5.0]]), b=jnp.asarray([1.0, 2.0])
         )
 
         for _ in range(10):
-            x = rng.randn(10, 2)
+            x = np.random.randn(10, 2)
             np.testing.assert_allclose(
                 obj.grad(x), self.exact_grad(obj, x), rtol=1e-5
             )
@@ -78,13 +77,13 @@ class LeastSquaresTest(absltest.TestCase):
         return jnp.squeeze(vmap(lambda x: jnp.dot(A, x) - b)(x))
 
     def test_least_squares_eval(self):
-        rng = np.random.RandomState(seed=0)
+        np.random.seed(0)
         n, d = 100, 10
         batch_size = 10
         prng_seed = 0
 
-        X = rng.randn(n, d)
-        y = X.dot(rng.randn(d)) + rng.randn(n)
+        X = np.random.randn(n, d)
+        y = X.dot(np.random.randn(d)) + np.random.randn(n)
         obj = LeastSquares(X=X, y=y, batch_size=batch_size)
         q_obj = Quadratic.from_least_squares(obj)
 
@@ -92,18 +91,18 @@ class LeastSquaresTest(absltest.TestCase):
 
         prng_key = random.PRNGKey(prng_seed)
         for _ in range(10):
-            x = rng.randn(rng.randint(1, 5), d)
+            x = np.random.randn(np.random.randint(1, 5), d)
             obj_val_d, prng_key = obj(x, prng_key=prng_key, deterministic=True)
             np.testing.assert_allclose(obj_val_d, q_obj(x), rtol=1e-6)
 
     def test_least_squares_eval_stochastic(self):
-        rng = np.random.RandomState(seed=0)
+        np.random.seed(0)
         n, d = 100, 10
         batch_size = 10
         prng_seed = 0
 
-        X = rng.randn(n, d)
-        y = X.dot(rng.randn(d)) + rng.randn(n)
+        X = np.random.randn(n, d)
+        y = X.dot(np.random.randn(d)) + np.random.randn(n)
         obj = LeastSquares(X=X, y=y, batch_size=batch_size)
 
         prng_key = random.PRNGKey(prng_seed)
@@ -113,24 +112,24 @@ class LeastSquaresTest(absltest.TestCase):
         obj_batch = LeastSquares(X=x_batch, y=y_batch, batch_size=batch_size)
         q_obj = Quadratic.from_least_squares(obj_batch)
 
-        x = rng.randn(d)
+        x = np.random.randn(d)
         obj_val_s, _ = obj(x, prng_key=prng_key, deterministic=False)
         np.testing.assert_allclose(obj_val_s, q_obj(x), rtol=1e-6)
 
     def test_least_squares_grad(self):
-        rng = np.random.RandomState(seed=0)
+        np.random.seed(0)
         n, d = 100, 10
         batch_size = 10
         prng_seed = 0
 
-        X = rng.randn(n, d)
-        y = X.dot(rng.randn(d)) + rng.randn(n)
+        X = np.random.randn(n, d)
+        y = X.dot(np.random.randn(d)) + np.random.randn(n)
         obj = LeastSquares(X=X, y=y, batch_size=batch_size)
         q_obj = Quadratic.from_least_squares(obj)
 
         prng_key = random.PRNGKey(prng_seed)
         for _ in range(10):
-            x = rng.randn(rng.randint(1, 5), d)
+            x = np.random.randn(np.random.randint(1, 5), d)
             obj_grad_d, prng_key = obj.grad(
                 x, prng_key=prng_key, deterministic=True
             )
@@ -140,13 +139,13 @@ class LeastSquaresTest(absltest.TestCase):
             )
 
     def test_least_squares_grad_stochastic(self):
-        rng = np.random.RandomState(seed=0)
+        np.random.seed(0)
         n, d = 100, 10
         batch_size = 10
         prng_seed = 0
 
-        X = rng.randn(n, d)
-        y = X.dot(rng.randn(d)) + rng.randn(n)
+        X = np.random.randn(n, d)
+        y = X.dot(np.random.randn(d)) + np.random.randn(n)
         obj = LeastSquares(X=X, y=y, batch_size=batch_size)
 
         prng_key = random.PRNGKey(prng_seed)
@@ -156,13 +155,14 @@ class LeastSquaresTest(absltest.TestCase):
         obj_batch = LeastSquares(X=x_batch, y=y_batch, batch_size=batch_size)
         q_obj = Quadratic.from_least_squares(obj_batch)
 
-        x = rng.randn(d)
+        x = np.random.randn(d)
         obj_grad_s, _ = obj.grad(x, prng_key=prng_key, deterministic=False)
         np.testing.assert_allclose(obj_grad_s, q_obj.grad(x), rtol=1e-6)
 
 
 class CreateObjectives(absltest.TestCase):
     def test_create_quadratics(self):
+        np.random.seed(0)
         objectives = create_random_quadratics(dim=10, num_objectives=5)
 
         self.assertTrue(len(objectives) == 5)
@@ -175,6 +175,7 @@ class CreateObjectives(absltest.TestCase):
         self.assertTrue(global_objective.dim == 10)
 
     def test_create_least_squares(self):
+        np.random.seed(0)
         objectives = create_random_least_squares(
             num_objectives=5, batch_size=10, n_features=20
         )
@@ -193,10 +194,9 @@ class CreateObjectives(absltest.TestCase):
             global_obj.solve(), global_q_obj.solve(), rtol=1e-5
         )
 
-        rng = np.random.RandomState(0)
         prng_key = random.PRNGKey(0)
         for _ in range(10):
-            x = rng.randn(rng.randint(1, 5), global_obj.dim)
+            x = np.random.randn(np.random.randint(1, 5), global_obj.dim)
             obj_val_d, prng_key = global_obj(
                 x, prng_key=prng_key, deterministic=True
             )

@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import numpy as np
 from absl import flags
 from absl.testing import absltest
-from jax import random, vmap
+from jax import random
 
 from ..objectives.quadratic import LeastSquares
 from .optimization import solve_sgd
