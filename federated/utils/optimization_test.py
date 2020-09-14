@@ -43,12 +43,12 @@ class SolveSGDTests(absltest.TestCase):
         init_state = random.normal(subkey, opt.shape, dtype=opt.dtype)
         init_momentum = jnp.zeros_like(opt)
         opt_sgd, _, opt_sgd_avg, prng_key = solve_sgd(
-            obj,
+            objective=obj,
             prng_key=prng_key,
             steps=1000,
             init_state=init_state,
             init_momentum=init_momentum,
-            learning_rate=0.1,
+            learning_rate_schedule=lambda _: 0.1,
             momentum=0.9,
         )
 
@@ -69,21 +69,18 @@ class SolveSGDTests(absltest.TestCase):
         prng_key, subkey = random.split(prng_key)
         x = random.normal(subkey, opt.shape, dtype=opt.dtype)
         v = jnp.zeros_like(opt)
-        lr = lr_init = 0.0002
-        momentum = 0.9
-        for i in range(10):
-            x, v, x_avg, prng_key = solve_sgd(
-                obj,
-                prng_key=prng_key,
-                steps=5000,
-                init_state=x,
-                init_momentum=v,
-                learning_rate=lr,
-                momentum=momentum,
-            )
-            lr = lr_init / (1.0 + i * 5.0)
+        lr_init = 1.0
+        momentum = 0.0
+        x, v, x_avg, prng_key = solve_sgd(
+            objective=obj,
+            prng_key=prng_key,
+            steps=15000,
+            init_state=x,
+            init_momentum=v,
+            learning_rate_schedule=lambda i: lr_init / jnp.sqrt(1.0 + i * 5.0),
+            momentum=momentum,
+        )
 
-        np.testing.assert_allclose(x, opt, rtol=1e-2)
         np.testing.assert_allclose(x_avg, opt, rtol=1e-2)
 
 
