@@ -43,17 +43,17 @@ class LeastSquares(StochasticObjective):
     def eval(self, x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
         """Computes the mean squared error loss for `x` on the `data_batch`."""
         x_batch, y_batch = data_batch
-        loss = 0.5 * jnp.mean(jnp.square(jnp.dot(x, x_batch.T) - y_batch))
+        loss = jnp.mean(jnp.square(jnp.dot(x, x_batch.T) - y_batch))
         reg = jnp.dot(x, x)
-        return loss + self.lam * reg
+        return 0.5 * (loss + self.lam * reg)
 
     @functools.partial(jit, static_argnums=(0,))
-    def solve(self, eps: float = 0.0):
+    def solve(self):
         """Returns the optimum by solving `(X^T X) x = X^T y`."""
-        n = self.X.shape[0]
-        A = jnp.dot(self.X.T, self.X) / n
+        n, d = self.X.shape
+        A = jnp.dot(self.X.T, self.X) / n + self.lam * jnp.eye(d)
         b = jnp.dot(self.X.T, self.y) / n
-        return jnp.linalg.solve(A + eps * jnp.eye(self.dim), b)
+        return jnp.linalg.solve(A, b)
 
 
 @attr.s
@@ -66,8 +66,8 @@ class Quadratic(Objective):
 
     @classmethod
     def from_least_squares(cls, obj: LeastSquares):
-        n = obj.X.shape[0]
-        A = jnp.dot(obj.X.T, obj.X) / n
+        n, d = obj.X.shape
+        A = jnp.dot(obj.X.T, obj.X) / n + obj.lam * jnp.eye(d)
         b = jnp.dot(obj.X.T, obj.y) / n
         c = jnp.dot(obj.y, obj.y) / (2 * n)
         return Quadratic(A=A, b=b, c=c)
@@ -85,9 +85,9 @@ class Quadratic(Objective):
             + self.c
         )
 
-    def solve(self, eps: float = 0.0) -> jnp.ndarray:
+    def solve(self) -> jnp.ndarray:
         """Returns the optimum by solving `A x = b`."""
-        return jnp.linalg.solve(self.A + eps * jnp.eye(self.dim), self.b)
+        return jnp.linalg.solve(self.A, self.b)
 
 
 def create_random_quadratics(

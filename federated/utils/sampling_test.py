@@ -18,17 +18,10 @@ import jax.numpy as jnp
 import numpy as np
 from absl import flags
 from absl.testing import absltest
-from jax import random, vmap
+from jax import random
 
-from ..objectives.quadratic import (
-    LeastSquares,
-    Quadratic,
-    create_global_least_squares,
-    create_global_quadratic,
-    create_random_least_squares,
-    create_random_quadratics,
-)
-from .sampling import ExactQuadraticSampler
+from ..objectives.quadratic import Quadratic, create_random_least_squares
+from .sampling import IASG, ExactQuadraticSampler
 
 FLAGS = flags.FLAGS
 
@@ -46,10 +39,68 @@ class ExactQuadraticSamplerTests(absltest.TestCase):
         num_samples = 10000
         prng_key = random.PRNGKey(0)
         sampler = ExactQuadraticSampler()
-        samples = sampler.sample(obj, num_samples, prng_key)
+        samples = sampler.sample(
+            objective=obj, prng_key=prng_key, num_samples=num_samples
+        )
+        self.assertEqual(samples.shape[0], num_samples)
 
         sample_mean = jnp.mean(samples, axis=0)
         sample_cov = jnp.cov(samples, rowvar=False)
 
         np.testing.assert_allclose(sample_mean, obj_opt_state, rtol=1e-2)
         np.testing.assert_allclose(sample_cov, posterior_cov, rtol=1e-1)
+
+
+class IASGSampler(absltest.TestCase):
+    def test_sample(self):
+        np.random.seed(0)
+        n, d = 1000, 5
+        batch_size = 10
+        num_samples = 200
+        parallel_chains = 10
+
+        obj = create_random_least_squares(
+            num_objectives=1,
+            batch_size=batch_size,
+            n_features=(d - 1),
+            n_samples_min=n,
+            n_samples_max=(n + 1),
+            lam=1e-3,
+        )[0]
+        opt = obj.solve()
+        q_obj = Quadratic.from_least_squares(obj)
+        posterior_cov = jnp.linalg.pinv(q_obj.A)
+        posterior_cov /= jnp.trace(posterior_cov)
+
+        # Approximate sampling from the posterior.
+        prng_key = random.PRNGKey(0)
+        sampler = IASG(
+            avg_steps=100,
+            burnin_steps=1000,
+            learning_rate=0.1,
+            discard_steps=100,
+        )
+        prng_key, subkey = random.split(prng_key)
+        init_state = random.normal(subkey, shape=(d,))
+        samples = sampler.sample(
+            objective=obj,
+            prng_key=prng_key,
+            init_state=init_state,
+            num_samples=num_samples,
+            parallel_chains=parallel_chains,
+        )
+        self.assertEqual(samples.shape[0], num_samples)
+
+        sample_mean = jnp.mean(samples, axis=0)
+        sample_cov = jnp.cov(samples, rowvar=False)
+        sample_cov /= jnp.trace(sample_cov)
+
+        sample_cov_fro_err = jnp.linalg.norm(sample_cov - posterior_cov, "fro")
+        np.testing.assert_allclose(sample_mean, opt, rtol=1e-1, atol=1e-1)
+        np.testing.assert_allclose(
+            sample_cov_fro_err, 0.0, rtol=1e-1, atol=1e-1
+        )
+
+
+if __name__ == "__main__":
+    absltest.main()

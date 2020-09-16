@@ -15,13 +15,12 @@
 """Utils for posterior sampling."""
 
 import abc
-import functools
-from typing import List, Tuple, Union
+import math
+from typing import Optional, Union
 
 import attr
 import jax.numpy as jnp
-import numpy as np
-from jax import jit, random
+from jax import random
 
 from ..objectives.base import Objective, StochasticObjective
 from ..objectives.quadratic import Quadratic
@@ -35,8 +34,8 @@ class PosteriorSampler(abc.ABC):
     def sample(
         self,
         objective: Union[Objective, StochasticObjective],
-        num_samples: int,
         prng_key: jnp.ndarray,
+        num_samples: int = 1,
     ) -> jnp.ndarray:
         """Must return a list of samples from the (approximate) posterior."""
         pass
@@ -46,7 +45,7 @@ class ExactQuadraticSampler(PosteriorSampler):
     """A sampler that produces exact samples from a quadratic posterior."""
 
     def sample(
-        self, objective: Quadratic, num_samples: int, prng_key: jnp.ndarray
+        self, objective: Quadratic, prng_key: jnp.ndarray, num_samples: int = 1
     ) -> jnp.ndarray:
         """Generates exact samples from a quadratic posterior (Gaussian)."""
         state_mean = objective.solve()
@@ -78,59 +77,90 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
     discard_steps: int = attr.ib(default=0)
     momentum: float = attr.ib(default=0.0)
 
-    @functools.partial(jit, static_argnums=(0, 1, 2))
     def sample(
         self,
         objective: StochasticObjective,
-        num_samples: int,
         prng_key: jnp.ndarray,
-        init_state: jnp.ndarray,
-        init_momentum: jnp.ndarray,
+        num_samples: int = 1,
+        parallel_chains: int = 1,
+        init_state: Optional[jnp.ndarray] = None,
     ) -> jnp.ndarray:
+        if init_state is None:
+            init_states = jnp.zeros((parallel_chains, objective.dim))
+        else:
+            init_states = jnp.tile(
+                jnp.expand_dims(init_state, axis=0), (parallel_chains, 1)
+            )
+        init_momenta = jnp.zeros_like(init_states)
+
+        def _lr_schedule(_):
+            return self.learning_rate
+
         # Burn-in.
-        x, v, _, prng_key = solve_sgd(
+        prng_key, subkey = random.split(prng_key)
+        xs, vs, _ = solve_sgd(
             objective=objective,
-            prng_key=prng_key,
+            prng_key=subkey,
+            init_states=init_states,
+            init_momenta=init_momenta,
             steps=self.burnin_steps,
-            init_state=init_state,
-            init_momentum=jnp.zeros_like(init_state),
-            learning_rate=self.learning_rate,
+            learning_rate_schedule=_lr_schedule,
             momentum=self.momentum,
         )
+
         # Sample.
         samples = []
-        for _ in range(num_samples):
-            x, v, x_avg, prng_key = solve_sgd(
+        for i in range(math.ceil(num_samples / parallel_chains)):
+            batch_size = min(parallel_chains, num_samples - i * parallel_chains)
+            prng_key, subkey = random.split(prng_key)
+            xs, vs, x_avgs = solve_sgd(
                 objective=objective,
-                prng_key=prng_key,
+                prng_key=subkey,
+                init_states=xs[:batch_size],
+                init_momenta=vs[:batch_size],
                 steps=self.avg_steps,
-                init_state=x,
-                init_momentum=v,
-                learning_rate=self.learning_rate,
+                learning_rate_schedule=_lr_schedule,
                 momentum=self.momentum,
             )
-            samples.append(x_avg)
+            samples.append(x_avgs)
             # Discard the specified number of steps, if necessary.
             if self.discard_steps > 0:
-                x, v, _, prng_key = solve_sgd(
+                prng_key, subkey = random.split(prng_key)
+                xs, vs, _ = solve_sgd(
                     objective=objective,
-                    prng_key=prng_key,
+                    prng_key=subkey,
+                    init_states=xs,
+                    init_momenta=vs,
                     steps=self.discard_steps,
-                    init_state=x,
-                    init_momentum=v,
-                    learning_rate=self.learning_rate,
+                    learning_rate_schedule=_lr_schedule,
                     momentum=self.momentum,
                 )
-        return jnp.stack(samples)
+        return jnp.concatenate(samples, axis=0)
 
 
+@attr.s
+class StochasticGradientLangevinDynamics(PosteriorSampler):
+    """A sampler that produces approximate samples using SGLD."""
+
+    # TODO: implement.
+
+
+@attr.s
 class HamiltonianMonteCarlo(PosteriorSampler):
     """A sampler that produces approximate samples using HMC."""
 
     # TODO: implement.
 
 
+@attr.s
 class StochasticGradientHamiltonianMonteCarlo(PosteriorSampler):
     """A sampler that produces approximate samples using SG-HMC."""
 
     # TODO: implement.
+
+
+# Aliases.
+HMC = HamiltonianMonteCarlo
+SGLD = StochasticGradientLangevinDynamics
+SGHMC = StochasticGradientHamiltonianMonteCarlo
+IASG = IterateAveragedStochasticGradientSampler
