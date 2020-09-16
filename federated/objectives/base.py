@@ -94,9 +94,8 @@ class StochasticObjective(abc.ABC):
         y_batch = jnp.take(self.y, batch_indices, axis=0)
         return x_batch, y_batch
 
-    @staticmethod
     @abc.abstractmethod
-    def eval(x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
+    def eval(self, x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
         """Must compute objective value at `x` given `data_batch`."""
         pass
 

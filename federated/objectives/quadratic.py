@@ -33,16 +33,19 @@ class LeastSquares(StochasticObjective):
     Objective function: `0.5 * ||y - X^T w||^2`.
     """
 
+    lam: float = attr.ib(default=0.0)
+
     @property
     def dim(self) -> int:
         return self.X.shape[1]
 
-    @staticmethod
-    @jit
-    def eval(x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
+    @functools.partial(jit, static_argnums=(0,))
+    def eval(self, x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
         """Computes the mean squared error loss for `x` on the `data_batch`."""
         x_batch, y_batch = data_batch
-        return 0.5 * jnp.mean(jnp.square(jnp.dot(x, x_batch.T) - y_batch))
+        loss = 0.5 * jnp.mean(jnp.square(jnp.dot(x, x_batch.T) - y_batch))
+        reg = jnp.dot(x, x)
+        return loss + self.lam * reg
 
     @functools.partial(jit, static_argnums=(0,))
     def solve(self, eps: float = 0.0):
@@ -161,6 +164,7 @@ def create_random_least_squares(
     effective_rank: Optional[int] = None,
     bias_scale: float = 0.0,
     noise: float = 0.0,
+    lam: float = 0.0,
     seed: int = 0,
 ) -> List[LeastSquares]:
     """Creates random `LeastSquares` problems.
@@ -178,6 +182,7 @@ def create_random_least_squares(
             See `sklearn.datasets.make_regression` for details.
         bias_scale: The scale of the bias term in the underlying linear model.
         noise: The standard deviation of the noise applied to the output.
+        lam: The L2 regularization coefficient.
         seed: The random seed.
 
     Returns:
@@ -197,20 +202,26 @@ def create_random_least_squares(
         )
         X = np.hstack([X, np.ones((X.shape[0], 1))])
         objectives.append(
-            LeastSquares(X=jnp.array(X), y=jnp.array(y), batch_size=batch_size)
+            LeastSquares(
+                X=jnp.array(X), y=jnp.array(y), batch_size=batch_size, lam=lam
+            )
         )
     return objectives
 
 
 def create_global_least_squares(
-    objectives: List[LeastSquares], batch_size: Optional[int] = None
+    objectives: List[LeastSquares],
+    batch_size: Optional[int] = None,
+    lam: Optional[float] = None,
 ) -> LeastSquares:
     """Creates the global least squares by concatenating all the data.
 
     Args:
         objectives: A list of `LeastSquares` objectives.
         batch_size: Optional batch size for the global objective.
-            If None, the maximum batch size of the `objectives` will be used.
+            If None, the maximum batch size of the `objectives` is used.
+        lam: Optional L2 regularization coefficient for the global objective.
+            If None, the maximum coefficient of the `objectives` is used.
 
     Returns:
         A global `LeastSquares` objective.
@@ -219,4 +230,6 @@ def create_global_least_squares(
     y = jnp.hstack([o.y for o in objectives])
     if batch_size is None:
         batch_size = np.max([o.batch_size for o in objectives])
-    return LeastSquares(X=X, y=y, batch_size=batch_size)
+    if lam is None:
+        lam = np.max([o.lam for o in objectives])
+    return LeastSquares(X=X, y=y, batch_size=batch_size, lam=lam)
