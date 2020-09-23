@@ -76,83 +76,115 @@ class StochasticObjective(abc.ABC):
     batch_size: int = attr.ib()
 
     @property
+    def data(self):
+        return self.X, self.y
+
+    @property
     @abc.abstractmethod
     def dim(self):
         """Must return the dimensionality of the problem."""
         pass
 
     @property
+    def kwargs(self):
+        return {}
+
+    @property
     def num_points(self) -> int:
         return self.X.shape[0]
 
+    @staticmethod
     @functools.partial(jit, static_argnums=(0,))
-    def _sample_batch(self, prng_key: jnp.ndarray) -> Dataset:
+    def _sample_batch(
+        batch_size: int, data: Dataset, prng_key: jnp.ndarray
+    ) -> Dataset:
+        x, y = data
+        num_points = x.shape[0]
         batch_indices = random.choice(
-            prng_key, self.num_points, (self.batch_size,), replace=False
+            prng_key, num_points, (batch_size,), replace=False
         )
-        x_batch = jnp.take(self.X, batch_indices, axis=0)
-        y_batch = jnp.take(self.y, batch_indices, axis=0)
+        x_batch = jnp.take(x, batch_indices, axis=0)
+        y_batch = jnp.take(y, batch_indices, axis=0)
         return x_batch, y_batch
 
-    @abc.abstractmethod
-    def eval(self, x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
-        """Must compute objective value at `x` given `data_batch`."""
-        pass
-
+    @classmethod
     @functools.partial(jit, static_argnums=(0, 1))
     def _eval(
-        self, deterministic: bool, x: jnp.ndarray, prng_key: jnp.ndarray
+        cls,
+        batch_size: int,
+        data: Dataset,
+        x: jnp.ndarray,
+        prng_key: jnp.ndarray,
+        **kwargs,
     ) -> jnp.ndarray:
-        if deterministic:
-            data_batch = self.X, self.y
-        else:
-            data_batch = self._sample_batch(prng_key)
-        return self.eval(x, data_batch)
+        data_batch = cls._sample_batch(batch_size, data, prng_key)
+        return cls.eval(x, data_batch, **kwargs)
 
+    @classmethod
     @functools.partial(jit, static_argnums=(0, 1))
     def _veval(
-        self, deterministic: bool, x: jnp.ndarray, prng_keys: jnp.ndarray
+        cls,
+        batch_size: int,
+        data: Dataset,
+        x: jnp.ndarray,
+        prng_keys: jnp.ndarray,
+        **kwargs,
     ) -> jnp.ndarray:
-        _eval = functools.partial(self._eval, deterministic)
+        _eval = functools.partial(cls._eval, batch_size, data, **kwargs)
         return jnp.squeeze(vmap(_eval)(x, prng_keys))
+
+    @classmethod
+    @functools.partial(jit, static_argnums=(0, 1))
+    def _grad(
+        cls,
+        batch_size: int,
+        data: Dataset,
+        x: jnp.ndarray,
+        prng_key: jnp.ndarray,
+        **kwargs,
+    ) -> jnp.ndarray:
+        data_batch = cls._sample_batch(batch_size, data, prng_key)
+        return grad(cls.eval, argnums=0)(x, data_batch, **kwargs)
+
+    @classmethod
+    @functools.partial(jit, static_argnums=(0, 1))
+    def _vgrad(
+        cls,
+        batch_size: int,
+        data: Dataset,
+        x: jnp.ndarray,
+        prng_keys: jnp.ndarray,
+        **kwargs,
+    ) -> jnp.ndarray:
+        _grad = functools.partial(cls._grad, batch_size, data, **kwargs)
+        return jnp.squeeze(vmap(_grad)(x, prng_keys))
 
     def __call__(
         self, x: jnp.ndarray, prng_key: jnp.ndarray, deterministic: bool = False
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    ) -> jnp.ndarray:
         """Computes the (stochastic) value of the objective at `x`."""
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
-        prng_key, *subkeys = random.split(prng_key, 1 + x.shape[0])
-        if deterministic:
-            return self._veval(True, x, jnp.stack(subkeys)), prng_key
-        else:
-            return self._veval(False, x, jnp.stack(subkeys)), prng_key
-
-    @functools.partial(jit, static_argnums=(0, 1))
-    def _grad(
-        self, deterministic: bool, x: jnp.ndarray, prng_key: jnp.ndarray
-    ) -> jnp.ndarray:
-        if deterministic:
-            data_batch = self.X, self.y
-        else:
-            data_batch = self._sample_batch(prng_key)
-        return grad(self.eval, argnums=0)(x, data_batch)
-
-    @functools.partial(jit, static_argnums=(0, 1))
-    def _vgrad(
-        self, deterministic: bool, x: jnp.ndarray, prng_keys: jnp.ndarray
-    ) -> jnp.ndarray:
-        _grad = functools.partial(self._grad, deterministic)
-        return jnp.squeeze(vmap(_grad)(x, prng_keys))
+        subkeys = random.split(prng_key, x.shape[0])
+        batch_size = self.num_points if deterministic else self.batch_size
+        return self._veval(
+            batch_size, self.data, x, jnp.stack(subkeys), **self.kwargs
+        )
 
     def grad(
         self, x: jnp.ndarray, prng_key: jnp.ndarray, deterministic: bool = False
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    ) -> jnp.ndarray:
         """Computes the (stochastic) gradient of the objective at `x`."""
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
-        prng_key, *subkeys = random.split(prng_key, 1 + x.shape[0])
-        if deterministic:
-            return self._vgrad(True, x, jnp.stack(subkeys)), prng_key
-        else:
-            return self._vgrad(False, x, jnp.stack(subkeys)), prng_key
+        subkeys = random.split(prng_key, x.shape[0])
+        batch_size = self.num_points if deterministic else self.batch_size
+        return self._vgrad(
+            batch_size, self.data, x, jnp.stack(subkeys), **self.kwargs
+        )
+
+    @classmethod
+    @abc.abstractmethod
+    def eval(cls, x: jnp.ndarray, data_batch: Dataset, **kwargs) -> jnp.ndarray:
+        """Must compute objective value at `x` given `data_batch`."""
+        pass

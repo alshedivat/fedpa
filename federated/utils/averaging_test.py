@@ -92,7 +92,7 @@ class ComputeAverageTests(absltest.TestCase):
     def test_posterior_average(self):
         np.random.seed(0)
         local_objectives = create_random_least_squares(
-            num_objectives=5, batch_size=10
+            num_objectives=5, batch_size=10, lam=1e-3
         )
         local_quadratics = [
             Quadratic.from_least_squares(o) for o in local_objectives

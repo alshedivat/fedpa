@@ -57,14 +57,13 @@ class IASGSampler(absltest.TestCase):
         n, d = 1000, 5
         batch_size = 10
         num_samples = 200
-        parallel_chains = 10
+        parallel_chains = 1
 
         obj = create_random_least_squares(
             num_objectives=1,
             batch_size=batch_size,
             n_features=(d - 1),
-            n_samples_min=n,
-            n_samples_max=(n + 1),
+            n_samples=(n,),
             lam=1e-3,
         )[0]
         opt = obj.solve()
@@ -76,8 +75,8 @@ class IASGSampler(absltest.TestCase):
         prng_key = random.PRNGKey(0)
         sampler = IASG(
             avg_steps=100,
-            burnin_steps=1000,
-            learning_rate=0.1,
+            burnin_steps=100,
+            learning_rate=1.0,
             discard_steps=100,
         )
         prng_key, subkey = random.split(prng_key)

@@ -15,24 +15,27 @@
 """Utility functions for objective optimization."""
 
 import functools
-from typing import Callable, Tuple, Union
+from typing import Callable, Tuple, Type, Union
 
 import jax.numpy as jnp
 from jax import jit, lax, random, vmap
 
-from ..objectives.base import StochasticObjective
+from ..objectives.base import Dataset, StochasticObjective
 
 
-@functools.partial(jit, static_argnums=(0, 1))
+@functools.partial(jit, static_argnums=(0, 1, 2))
 def _solve_sgd(
     learning_rate_schedule: Callable[[int], float],
-    objective: StochasticObjective,
+    objective_type: Type[StochasticObjective],
+    batch_size: int,
+    data: Dataset,
     steps: int,
     momentum: float,
     noise_scale: float,
     prng_key: jnp.ndarray,
     init_state: jnp.ndarray,
     init_momentum: jnp.ndarray,
+    **kwargs,
 ):
     """Runs SGD on a stochastic objective for the specified number of steps."""
 
@@ -40,8 +43,9 @@ def _solve_sgd(
     def _sgd_step(i, inputs):
         """Performs a single step of SGD."""
         x, v, x_avg, prng_key = inputs
-        sg, prng_key = objective.grad(x, prng_key)
-        sg_noise = noise_scale * random.normal(prng_key, sg.shape)
+        prng_key, prng_key_sg, prng_key_noise = random.split(prng_key, 3)
+        sg = objective_type._grad(batch_size, data, x, prng_key_sg, **kwargs)
+        sg_noise = noise_scale * random.normal(prng_key_noise, sg.shape)
         sg = sg + sg_noise * jnp.sqrt(2.0 / learning_rate_schedule(i))
         v = momentum * v + sg
         x = x - learning_rate_schedule(i) * v
@@ -94,22 +98,34 @@ def solve_sgd(
         init_states, init_momenta = init_states
     else:
         init_momenta = jnp.zeros_like(init_states)
+    assert init_states.shape == init_momenta.shape, (
+        "Initial states and momenta must have the same shapes. Provided: "
+        f"init_states: {init_states.shape}, init_momenta: {init_momenta.shape}."
+    )
 
     # Add batch dimension, if necessary.
+    squeeze = False
     if init_states.ndim == 1:
         init_states = jnp.expand_dims(init_states, axis=0)
-    if init_momenta.ndim == 1:
         init_momenta = jnp.expand_dims(init_momenta, axis=0)
+        squeeze = True
 
-    # Run a vectorized version of the solver.
-    prng_keys = random.split(prng_key, init_states.shape[0])
+    # Create an SGD solver.
     solver = functools.partial(
         _solve_sgd,
         learning_rate_schedule,
-        objective,
+        type(objective),
+        objective.batch_size,
+        objective.data,
         steps,
         momentum,
         noise_scale,
+        **objective.kwargs,
     )
+
+    # Run a vectorized version of the solver.
+    prng_keys = random.split(prng_key, init_states.shape[0])
     xs, vs, x_avgs = vmap(solver)(prng_keys, init_states, init_momenta)
-    return (jnp.squeeze(xs), jnp.squeeze(vs)), jnp.squeeze(x_avgs)
+    if squeeze:
+        xs, vs, x_avgs = map(jnp.squeeze, (xs, vs, x_avgs))
+    return (xs, vs), x_avgs

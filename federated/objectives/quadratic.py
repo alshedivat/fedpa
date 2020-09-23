@@ -15,7 +15,7 @@
 """Quadratic objective functions."""
 
 import functools
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import attr
 import jax.numpy as jnp
@@ -36,16 +36,23 @@ class LeastSquares(StochasticObjective):
     lam: float = attr.ib(default=0.0)
 
     @property
+    def kwargs(self):
+        return {"lam": self.lam}
+
+    @property
     def dim(self) -> int:
         return self.X.shape[1]
 
+    @classmethod
     @functools.partial(jit, static_argnums=(0,))
-    def eval(self, x: jnp.ndarray, data_batch: Dataset) -> jnp.ndarray:
+    def eval(
+        cls, x: jnp.ndarray, data_batch: Dataset, lam: float = 0.0
+    ) -> jnp.ndarray:
         """Computes the mean squared error loss for `x` on the `data_batch`."""
         x_batch, y_batch = data_batch
         loss = jnp.mean(jnp.square(jnp.dot(x, x_batch.T) - y_batch))
         reg = jnp.dot(x, x)
-        return 0.5 * (loss + self.lam * reg)
+        return 0.5 * (loss + lam * reg)
 
     @functools.partial(jit, static_argnums=(0,))
     def solve(self):
@@ -159,8 +166,7 @@ def create_random_least_squares(
     batch_size: int,
     n_features: int = 100,
     n_informative: int = 10,
-    n_samples_min: int = 100,
-    n_samples_max: int = 1000,
+    n_samples: Tuple[int, ...] = (100,),
     effective_rank: Optional[int] = None,
     bias_scale: float = 0.0,
     noise: float = 0.0,
@@ -175,8 +181,7 @@ def create_random_least_squares(
         n_features: The number of features in the generated data.
         n_informative: The number of informative features.
             See `sklearn.datasets.make_regression` for details.
-        n_samples_min: The minimal number of samples per objective.
-        n_samples_max: The maximal number of samples per objective.
+        n_samples: A tuple of possible number of samples per objective.
         effective_rank: Optional approximate number of singular vectors required
             to explain most of the input data by linear combinations.
             See `sklearn.datasets.make_regression` for details.
@@ -192,7 +197,7 @@ def create_random_least_squares(
     objectives = []
     for _ in range(num_objectives):
         X, y = datasets.make_regression(
-            n_samples=np.random.randint(n_samples_min, n_samples_max),
+            n_samples=np.random.choice(n_samples),
             n_features=n_features,
             n_informative=n_informative,
             effective_rank=effective_rank,
