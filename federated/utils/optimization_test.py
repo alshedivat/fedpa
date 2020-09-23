@@ -41,17 +41,15 @@ class SolveSGDTests(absltest.TestCase):
         prng_key = random.PRNGKey(prng_seed)
         prng_key, subkey = random.split(prng_key)
         init_state = random.normal(subkey, opt.shape, dtype=opt.dtype)
-        init_momentum = jnp.zeros_like(opt)
 
         def _lr_schedule(_):
             return 0.1
 
-        x, v, x_avg = solve_sgd(
+        (x, v), x_avg = solve_sgd(
             objective=obj,
             prng_key=prng_key,
             steps=1000,
             init_states=init_state,
-            init_momenta=init_momentum,
             learning_rate_schedule=_lr_schedule,
             momentum=0.9,
             noise_scale=0.0,
@@ -77,17 +75,15 @@ class SolveSGDTests(absltest.TestCase):
         prng_key = random.PRNGKey(prng_seed)
         prng_key, subkey = random.split(prng_key)
         init_states = random.normal(subkey, opt.shape, dtype=opt.dtype)
-        init_momenta = jnp.zeros_like(opt)
 
         def _lr_schedule(_):
             return 0.1
 
-        xs, vs, x_avgs = solve_sgd(
+        (xs, vs), x_avgs = solve_sgd(
             objective=obj,
             prng_key=prng_key,
             steps=1000,
             init_states=init_states,
-            init_momenta=init_momenta,
             learning_rate_schedule=_lr_schedule,
             momentum=0.9,
             noise_scale=0.0,
@@ -115,14 +111,12 @@ class SolveSGDTests(absltest.TestCase):
         prng_key = random.PRNGKey(prng_seed)
         prng_key, subkey = random.split(prng_key)
         x = random.normal(subkey, opt.shape, dtype=opt.dtype)
-        v = jnp.zeros_like(opt)
 
-        x, v, x_avg = solve_sgd(
+        (x, v), x_avg = solve_sgd(
             objective=obj,
             prng_key=prng_key,
             steps=1000,
             init_states=x,
-            init_momenta=v,
             learning_rate_schedule=_lr_schedule,
         )
 

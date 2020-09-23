@@ -36,6 +36,7 @@ class PosteriorSampler(abc.ABC):
         objective: Union[Objective, StochasticObjective],
         prng_key: jnp.ndarray,
         num_samples: int = 1,
+        **kwargs,
     ) -> jnp.ndarray:
         """Must return a list of samples from the (approximate) posterior."""
         pass
@@ -45,9 +46,15 @@ class ExactQuadraticSampler(PosteriorSampler):
     """A sampler that produces exact samples from a quadratic posterior."""
 
     def sample(
-        self, objective: Quadratic, prng_key: jnp.ndarray, num_samples: int = 1
+        self,
+        objective: Union[Objective, StochasticObjective],
+        prng_key: jnp.ndarray,
+        num_samples: int = 1,
+        **_unused_kwargs,
     ) -> jnp.ndarray:
         """Generates exact samples from a quadratic posterior (Gaussian)."""
+        if isinstance(objective, StochasticObjective):
+            objective = Quadratic.from_least_squares(objective)
         state_mean = objective.solve()
         state_cov = jnp.linalg.pinv(objective.A)
         samples = random.multivariate_normal(
@@ -91,18 +98,16 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
             init_states = jnp.tile(
                 jnp.expand_dims(init_state, axis=0), (parallel_chains, 1)
             )
-        init_momenta = jnp.zeros_like(init_states)
 
         def _lr_schedule(_):
             return self.learning_rate
 
         # Burn-in.
         prng_key, subkey = random.split(prng_key)
-        xs, vs, _ = solve_sgd(
+        (xs, vs), _ = solve_sgd(
             objective=objective,
             prng_key=subkey,
             init_states=init_states,
-            init_momenta=init_momenta,
             steps=self.burnin_steps,
             learning_rate_schedule=_lr_schedule,
             momentum=self.momentum,
@@ -113,11 +118,10 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
         for i in range(math.ceil(num_samples / parallel_chains)):
             batch_size = min(parallel_chains, num_samples - i * parallel_chains)
             prng_key, subkey = random.split(prng_key)
-            xs, vs, x_avgs = solve_sgd(
+            (xs, vs), x_avgs = solve_sgd(
                 objective=objective,
                 prng_key=subkey,
-                init_states=xs[:batch_size],
-                init_momenta=vs[:batch_size],
+                init_states=(xs[:batch_size], vs[:batch_size]),
                 steps=self.avg_steps,
                 learning_rate_schedule=_lr_schedule,
                 momentum=self.momentum,
@@ -126,11 +130,10 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
             # Discard the specified number of steps, if necessary.
             if self.discard_steps > 0:
                 prng_key, subkey = random.split(prng_key)
-                xs, vs, _ = solve_sgd(
+                (xs, vs), _ = solve_sgd(
                     objective=objective,
                     prng_key=subkey,
-                    init_states=xs,
-                    init_momenta=vs,
+                    init_states=(xs, vs),
                     steps=self.discard_steps,
                     learning_rate_schedule=_lr_schedule,
                     momentum=self.momentum,
@@ -160,6 +163,7 @@ class StochasticGradientHamiltonianMonteCarlo(PosteriorSampler):
 
 
 # Aliases.
+EQS = ExactQuadraticSampler
 HMC = HamiltonianMonteCarlo
 SGLD = StochasticGradientLangevinDynamics
 SGHMC = StochasticGradientHamiltonianMonteCarlo

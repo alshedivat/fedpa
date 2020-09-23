@@ -15,7 +15,7 @@
 """Utility functions for objective optimization."""
 
 import functools
-from typing import Callable
+from typing import Callable, Tuple, Union
 
 import jax.numpy as jnp
 from jax import jit, lax, random, vmap
@@ -57,8 +57,7 @@ def _solve_sgd(
 def solve_sgd(
     objective: StochasticObjective,
     prng_key: jnp.ndarray,
-    init_states: jnp.ndarray,
-    init_momenta: jnp.ndarray,
+    init_states: Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
     *,
     learning_rate_schedule: Callable[[int], float],
     steps: int,
@@ -77,8 +76,9 @@ def solve_sgd(
     Args:
         objective: An stochastic objective function.
         prng_key: A key for random number generation.
-        init_states: The initial state vector.
-        init_momenta: The initial momentum vector.
+        init_states: The initial state array or tuple of arrays.
+            If the tuple is provided, the second vector is provided, regards it
+            as the initial momenta. Otherwise, initializes momenta with zeros.
         steps: The number of stochastic gradient steps to use.
         learning_rate_schedule: A function that maps step to a learning rate.
         momentum: The momentum coefficient.
@@ -89,10 +89,19 @@ def solve_sgd(
     Returns:
       A tuple of updated (state, momentum, state_avg) after SGD steps.
     """
+    # Create momentum vector, if necessary.
+    if isinstance(init_states, tuple):
+        init_states, init_momenta = init_states
+    else:
+        init_momenta = jnp.zeros_like(init_states)
+
+    # Add batch dimension, if necessary.
     if init_states.ndim == 1:
         init_states = jnp.expand_dims(init_states, axis=0)
     if init_momenta.ndim == 1:
         init_momenta = jnp.expand_dims(init_momenta, axis=0)
+
+    # Run a vectorized version of the solver.
     prng_keys = random.split(prng_key, init_states.shape[0])
     solver = functools.partial(
         _solve_sgd,
@@ -103,4 +112,4 @@ def solve_sgd(
         noise_scale,
     )
     xs, vs, x_avgs = vmap(solver)(prng_keys, init_states, init_momenta)
-    return jnp.squeeze(xs), jnp.squeeze(vs), jnp.squeeze(x_avgs)
+    return (jnp.squeeze(xs), jnp.squeeze(vs)), jnp.squeeze(x_avgs)
