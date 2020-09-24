@@ -21,7 +21,7 @@ import jax.numpy as jnp
 from jax import random
 
 from ..objectives.base import StochasticObjective
-from .averaging import compute_posterior_average, compute_weighted_average
+from .averaging import compute_weighted_average
 from .moments import MomentEstimator, ShrinkageMomentEstimator
 from .optimization import solve_sgd
 from .sampling import (

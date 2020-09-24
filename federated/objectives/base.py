@@ -40,6 +40,11 @@ class Objective(abc.ABC):
         """Must return the value of the objective at `x`."""
         pass
 
+    @abc.abstractmethod
+    def solve(self) -> jnp.ndarray:
+        """Must return the minimizer of the objective."""
+        pass
+
     @functools.partial(jit, static_argnums=(0,))
     def _veval(self, x: jnp.ndarray) -> jnp.ndarray:
         return jnp.squeeze(vmap(self.eval)(x))
