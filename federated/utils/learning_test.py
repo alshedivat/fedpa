@@ -24,7 +24,7 @@ from ..objectives.quadratic import (
     create_global_least_squares,
     create_random_least_squares,
 )
-from .federated import (
+from .learning import (
     create_fed_avg,
     create_mb_sgd,
     create_post_avg_exact,

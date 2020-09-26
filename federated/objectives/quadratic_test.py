@@ -199,7 +199,7 @@ class CreateObjectives(absltest.TestCase):
         )
         self.assertTrue(global_obj.dim == global_q_obj.dim == 21)
         np.testing.assert_allclose(
-            global_obj.solve(), global_q_obj.solve(), rtol=1e-5
+            global_obj.solve(), global_q_obj.solve(), rtol=1e-4
         )
 
         prng_key = random.PRNGKey(0)

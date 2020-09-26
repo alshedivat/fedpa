@@ -86,11 +86,12 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
 
     def sample(
         self,
-        objective: StochasticObjective,
+        objective: Union[Objective, StochasticObjective],
         prng_key: jnp.ndarray,
         num_samples: int = 1,
         parallel_chains: int = 1,
         init_state: Optional[jnp.ndarray] = None,
+        noise_scale: float = 0.0,
     ) -> jnp.ndarray:
         if init_state is None:
             init_states = jnp.zeros((parallel_chains, objective.dim))
@@ -111,6 +112,7 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
             steps=self.burnin_steps,
             learning_rate_schedule=_lr_schedule,
             momentum=self.momentum,
+            noise_scale=noise_scale,
         )
 
         # Sample.
@@ -125,6 +127,7 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
                 steps=self.avg_steps,
                 learning_rate_schedule=_lr_schedule,
                 momentum=self.momentum,
+                noise_scale=noise_scale,
             )
             samples.append(x_avgs)
             # Discard the specified number of steps, if necessary.
@@ -137,6 +140,7 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
                     steps=self.discard_steps,
                     learning_rate_schedule=_lr_schedule,
                     momentum=self.momentum,
+                    noise_scale=noise_scale,
                 )
         return jnp.concatenate(samples, axis=0)
 

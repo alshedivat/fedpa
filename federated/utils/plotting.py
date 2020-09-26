@@ -34,6 +34,7 @@ def plot_objective_contours(
     mesh_margins: Tuple[float, float] = (10.0, 10.0),
     mesh_steps: Tuple[float, float] = (0.1, 0.1),
     num_levels: int = 10,
+    levels_log: bool = False,
     levels_log_base: float = 2.0,
     max_level_coeff: float = 0.25,
 ):
@@ -69,17 +70,22 @@ def plot_objective_contours(
     z_meshes = [np.asarray(o(params)).reshape(x_mesh.shape) for o in objectives]
 
     # Determine contour levels.
-    corners = np.asarray(itertools.product(xlim, ylim))
+    corners = np.asarray(list(itertools.product(xlim, ylim)))
     level_min = np.min([obj(opt) for obj, opt in zip(objectives, optima)])
     level_max = np.max([obj(corners) for obj in objectives]) * max_level_coeff
-    levels = np.logspace(
-        np.log(level_min), np.log(level_max), num_levels, base=levels_log_base
-    )
+    if levels_log:
+        level_min_log, level_max_log = map(np.log, (level_min, level_max))
+        levels = np.logspace(
+            level_min_log, level_max_log, num_levels, base=levels_log_base
+        )
+    else:
+        levels = np.linspace(level_min, level_max, num_levels)
 
     # Plot and return contours.
     contour_kwargs = {"alpha": contour_alpha, "linewidths": contour_linewidth}
-
-    return [
+    contours = [
         ax.contour(x_mesh, y_mesh, z_mesh, levels, **contour_kwargs)
         for z_mesh in z_meshes
     ]
+
+    return contours, (xlim, ylim)

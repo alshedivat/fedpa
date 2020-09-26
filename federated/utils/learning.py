@@ -161,6 +161,7 @@ def compute_fed_avg_delta(
     *,
     learning_rate_schedule: Callable[[int], float],
     momentum: float = 0.0,
+    noise_scale: float = 0.0,
 ) -> jnp.ndarray:
     """The standard SGD-based computation of client delta (used in FedAvg).
 
@@ -174,6 +175,7 @@ def compute_fed_avg_delta(
         num_steps: The number of local SGD steps.
         learning_rate_schedule: The learning rate schedule function for SGD.
         momentum: The momentum used by SGD.
+        noise_scale: The scale of the injected Gaussian gradient noise.
 
     Returns:
         The computed client delta.
@@ -185,6 +187,7 @@ def compute_fed_avg_delta(
         learning_rate_schedule=learning_rate_schedule,
         steps=num_steps,
         momentum=momentum,
+        noise_scale=noise_scale,
     )
     return init_state - x
 
@@ -197,6 +200,7 @@ def compute_mb_sgd_delta(
     *,
     learning_rate_schedule: Callable[[int], float],
     momentum: float = 0.0,
+    noise_scale: float = 0.0,
 ) -> jnp.ndarray:
     """Computes MB-SGD delta for the given objective and initial state.
 
@@ -210,6 +214,7 @@ def compute_mb_sgd_delta(
         num_grads: The number of local stochastic gradients to be averaged.
         learning_rate_schedule: The learning rate schedule function for SGD.
         momentum: The momentum used by SGD.
+        noise_scale: The scale of the injected Gaussian gradient noise.
 
     Returns:
         The computed client delta.
@@ -222,6 +227,7 @@ def compute_mb_sgd_delta(
         learning_rate_schedule=learning_rate_schedule,
         steps=1,
         momentum=momentum,
+        noise_scale=noise_scale,
     )
     return init_state - jnp.mean(xs, axis=0)
 
