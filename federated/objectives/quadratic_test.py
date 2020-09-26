@@ -72,9 +72,14 @@ class LeastSquaresTest(absltest.TestCase):
         n, d = obj.X.shape
         A = jnp.dot(obj.X.T, obj.X) / n + obj.lam * jnp.eye(d)
         b = jnp.dot(obj.X.T, obj.y) / n
+        squeeze = False
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
-        return jnp.squeeze(vmap(lambda x: jnp.dot(A, x) - b)(x))
+            squeeze = True
+        value = vmap(lambda x: jnp.dot(A, x) - b)(x)
+        if squeeze:
+            value = jnp.squeeze(value)
+        return value
 
     def test_least_squares_eval(self):
         np.random.seed(0)

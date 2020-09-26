@@ -23,7 +23,7 @@ import numpy as np
 from jax.api import jit
 from sklearn import datasets
 
-from .base import Dataset, Objective, StochasticObjective
+from .base import Dataset, Objective, ObjectiveParams, StochasticObjective
 
 
 @attr.s
@@ -43,10 +43,10 @@ class LeastSquares(StochasticObjective):
     def dim(self) -> int:
         return self.X.shape[1]
 
-    @classmethod
-    @functools.partial(jit, static_argnums=(0,))
+    @staticmethod
+    @jit
     def eval(
-        cls, x: jnp.ndarray, data_batch: Dataset, lam: float = 0.0
+        x: jnp.ndarray, data_batch: Dataset, lam: float = 0.0
     ) -> jnp.ndarray:
         """Computes the mean squared error loss for `x` on the `data_batch`."""
         x_batch, y_batch = data_batch
@@ -83,14 +83,16 @@ class Quadratic(Objective):
     def dim(self):
         return self.b.shape[0]
 
-    @functools.partial(jit, static_argnums=(0,))
-    def eval(self, x: jnp.ndarray):
+    @property
+    def params(self):
+        return self.A, self.b, self.c
+
+    @staticmethod
+    @jit
+    def eval(params: ObjectiveParams, x: jnp.ndarray):
         """Computes the value of the quadratic at the specified point."""
-        return (
-            0.5 * jnp.einsum("ij,i,j->", self.A, x, x)
-            - jnp.dot(self.b, x)
-            + self.c
-        )
+        A, b, c = params
+        return 0.5 * jnp.einsum("ij,i,j->", A, x, x) - jnp.dot(b, x) + c
 
     def solve(self) -> jnp.ndarray:
         """Returns the optimum by solving `A x = b`."""

@@ -44,7 +44,7 @@ def _solve_sgd(
         """Performs a single step of SGD."""
         x, v, x_avg, prng_key = inputs
         prng_key, prng_key_sg, prng_key_noise = random.split(prng_key, 3)
-        sg = objective_type._grad(batch_size, data, x, prng_key_sg, **kwargs)
+        sg = objective_type._grad(batch_size, data, prng_key_sg, x, **kwargs)
         sg_noise = noise_scale * random.normal(prng_key_noise, sg.shape)
         sg = sg + sg_noise * jnp.sqrt(2.0 / learning_rate_schedule(i))
         v = momentum * v + sg

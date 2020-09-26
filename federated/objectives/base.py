@@ -16,54 +16,77 @@
 
 import abc
 import functools
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 import attr
 import jax.numpy as jnp
-from jax import grad, jit, lax, random, vmap
+from jax import grad, jit, random, vmap
 
 # Types.
 Dataset = Tuple[jnp.ndarray, jnp.ndarray]
+ObjectiveParams = Tuple[jnp.ndarray, ...]
 
 
 class Objective(abc.ABC):
     """Abstract base class for objective functions."""
 
     @property
-    @abc.abstractmethod
-    def dim(self):
-        """Must return the dimensionality of the problem."""
-        pass
+    def kwargs(self) -> Dict[str, Any]:
+        return {}
 
-    @abc.abstractmethod
-    def eval(self, x: jnp.ndarray):
-        """Must return the value of the objective at `x`."""
-        pass
-
-    @abc.abstractmethod
-    def solve(self) -> jnp.ndarray:
-        """Must return the minimizer of the objective."""
-        pass
-
+    @classmethod
     @functools.partial(jit, static_argnums=(0,))
-    def _veval(self, x: jnp.ndarray) -> jnp.ndarray:
-        return jnp.squeeze(vmap(self.eval)(x))
+    def _veval(
+        cls, params: ObjectiveParams, x: jnp.ndarray, **kwargs
+    ) -> jnp.ndarray:
+        _eval = functools.partial(cls.eval, params, **kwargs)
+        return vmap(_eval)(x)
+
+    @classmethod
+    @functools.partial(jit, static_argnums=(0,))
+    def _vgrad(
+        cls, params: ObjectiveParams, x: jnp.ndarray, **kwargs
+    ) -> jnp.ndarray:
+        _eval = functools.partial(cls.eval, params, **kwargs)
+        return vmap(grad(_eval))(x)
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         """Computes the value of the objective at `x`."""
+        # Add batch dimension, if necessary.
+        squeeze = False
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
-        return self._veval(x)
-
-    @functools.partial(jit, static_argnums=(0,))
-    def _vgrad(self, x: jnp.ndarray) -> jnp.ndarray:
-        return jnp.squeeze(vmap(grad(self.eval))(x))
+            squeeze = True
+        # Run a vectorized version of grad.
+        value = self._veval(self.params, x, **self.kwargs)
+        if squeeze:
+            value = jnp.squeeze(value)
+        return value
 
     def grad(self, x: jnp.ndarray) -> jnp.ndarray:
         """Returns the gradient of the objective at `x`."""
+        # Add batch dimension, if necessary.
+        squeeze = False
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
-        return self._vgrad(x)
+            squeeze = True
+        # Run a vectorized version of grad.
+        value = self._vgrad(self.params, x, **self.kwargs)
+        if squeeze:
+            value = jnp.squeeze(value)
+        return value
+
+    @property
+    @abc.abstractmethod
+    def params(self) -> ObjectiveParams:
+        """Must return a tuple of parameters of the objective"""
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def eval(params: ObjectiveParams, x: jnp.ndarray) -> jnp.ndarray:
+        """Must return the value of the objective at `x`."""
+        pass
 
 
 @attr.s
@@ -85,13 +108,7 @@ class StochasticObjective(abc.ABC):
         return self.X, self.y
 
     @property
-    @abc.abstractmethod
-    def dim(self):
-        """Must return the dimensionality of the problem."""
-        pass
-
-    @property
-    def kwargs(self):
+    def kwargs(self) -> Dict[str, Any]:
         return {}
 
     @property
@@ -118,8 +135,8 @@ class StochasticObjective(abc.ABC):
         cls,
         batch_size: int,
         data: Dataset,
-        x: jnp.ndarray,
         prng_key: jnp.ndarray,
+        x: jnp.ndarray,
         **kwargs,
     ) -> jnp.ndarray:
         data_batch = cls._sample_batch(batch_size, data, prng_key)
@@ -131,12 +148,12 @@ class StochasticObjective(abc.ABC):
         cls,
         batch_size: int,
         data: Dataset,
-        x: jnp.ndarray,
         prng_keys: jnp.ndarray,
+        x: jnp.ndarray,
         **kwargs,
     ) -> jnp.ndarray:
         _eval = functools.partial(cls._eval, batch_size, data, **kwargs)
-        return jnp.squeeze(vmap(_eval)(x, prng_keys))
+        return vmap(_eval)(prng_keys, x)
 
     @classmethod
     @functools.partial(jit, static_argnums=(0, 1))
@@ -144,12 +161,14 @@ class StochasticObjective(abc.ABC):
         cls,
         batch_size: int,
         data: Dataset,
-        x: jnp.ndarray,
         prng_key: jnp.ndarray,
+        x: jnp.ndarray,
         **kwargs,
     ) -> jnp.ndarray:
-        data_batch = cls._sample_batch(batch_size, data, prng_key)
-        return grad(cls.eval, argnums=0)(x, data_batch, **kwargs)
+        _eval = functools.partial(
+            cls._eval, batch_size, data, prng_key, **kwargs
+        )
+        return grad(_eval)(x)
 
     @classmethod
     @functools.partial(jit, static_argnums=(0, 1))
@@ -157,39 +176,62 @@ class StochasticObjective(abc.ABC):
         cls,
         batch_size: int,
         data: Dataset,
-        x: jnp.ndarray,
         prng_keys: jnp.ndarray,
+        x: jnp.ndarray,
         **kwargs,
     ) -> jnp.ndarray:
         _grad = functools.partial(cls._grad, batch_size, data, **kwargs)
-        return jnp.squeeze(vmap(_grad)(x, prng_keys))
+        return vmap(_grad)(prng_keys, x)
 
     def __call__(
         self, x: jnp.ndarray, prng_key: jnp.ndarray, deterministic: bool = False
     ) -> jnp.ndarray:
         """Computes the (stochastic) value of the objective at `x`."""
+        # Add batch dimension, if necessary.
+        squeeze = False
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
+            squeeze = True
+        # Run a vectorized version of eval.
         subkeys = random.split(prng_key, x.shape[0])
         batch_size = self.num_points if deterministic else self.batch_size
-        return self._veval(
-            batch_size, self.data, x, jnp.stack(subkeys), **self.kwargs
-        )
+        args = batch_size, self.data, jnp.stack(subkeys)
+        value = self._veval(*args, x, **self.kwargs)
+        if squeeze:
+            value = jnp.squeeze(value)
+        return value
 
     def grad(
         self, x: jnp.ndarray, prng_key: jnp.ndarray, deterministic: bool = False
     ) -> jnp.ndarray:
         """Computes the (stochastic) gradient of the objective at `x`."""
+        # Add batch dimension, if necessary.
+        squeeze = False
         if x.ndim == 1:
             x = jnp.expand_dims(x, axis=0)
+            squeeze = True
+        # Run a vectorized version of grad.
         subkeys = random.split(prng_key, x.shape[0])
         batch_size = self.num_points if deterministic else self.batch_size
-        return self._vgrad(
-            batch_size, self.data, x, jnp.stack(subkeys), **self.kwargs
-        )
+        args = batch_size, self.data, jnp.stack(subkeys)
+        value = self._vgrad(*args, x, **self.kwargs)
+        if squeeze:
+            value = jnp.squeeze(value)
+        return value
 
-    @classmethod
+    @property
     @abc.abstractmethod
-    def eval(cls, x: jnp.ndarray, data_batch: Dataset, **kwargs) -> jnp.ndarray:
+    def dim(self) -> int:
+        """Must return the dimensionality of the problem."""
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def eval(x: jnp.ndarray, data_batch: Dataset, **kwargs) -> jnp.ndarray:
         """Must compute objective value at `x` given `data_batch`."""
+        pass
+
+    @abc.abstractmethod
+    def solve(self) -> jnp.ndarray:
+        """Must return the minimizer of the objective."""
         pass
