@@ -27,6 +27,7 @@ def plot_objective_contours(
     ax: Axes,
     objectives: List[Objective],
     global_objective: Optional[Objective] = None,
+    contour_cmaps: Optional[List[str]] = None,
     contour_alpha: float = 0.7,
     contour_linewidth: float = 0.8,
     xlim: Optional[Tuple[float, float]] = None,
@@ -82,10 +83,14 @@ def plot_objective_contours(
         levels = np.linspace(level_min, level_max, num_levels)
 
     # Plot and return contours.
-    contour_kwargs = {"alpha": contour_alpha, "linewidths": contour_linewidth}
-    contours = [
-        ax.contour(x_mesh, y_mesh, z_mesh, levels, **contour_kwargs)
-        for z_mesh in z_meshes
-    ]
+    contours = []
+    for i, z_mesh in enumerate(z_meshes):
+        contour_kwargs = {
+            "alpha": contour_alpha,
+            "linewidths": contour_linewidth,
+            "cmap": contour_cmaps[i] if contour_cmaps else None,
+        }
+        contour = ax.contour(x_mesh, y_mesh, z_mesh, levels, **contour_kwargs)
+        contours.append(contour)
 
     return contours, (xlim, ylim)
