@@ -339,7 +339,10 @@ def compute_server_update(
 
 
 def sample_clients_uniformly(
-    prng_key: jnp.ndarray, num_clients_total: int, num_clients_to_sample: int
+    prng_key: jnp.ndarray,
+    num_clients_total: int,
+    num_clients_to_sample: int,
+    replace: bool = False,
 ) -> jnp.ndarray:
     """Samples clients uniformly at random.
 
@@ -347,11 +350,14 @@ def sample_clients_uniformly(
         prng_key: A key for random number generation.
         num_clients_total: The total number of clients.
         num_clients_to_sample: The number of clients to sample.
+        replace: Whether to sample clients with replacement.
 
     Returns:
         An array of client indices.
     """
-    return random.choice(prng_key, num_clients_total, (num_clients_to_sample,))
+    return random.choice(
+        prng_key, num_clients_total, (num_clients_to_sample,), replace=replace
+    )
 
 
 # Utility functions that create specific FL algorithms.
