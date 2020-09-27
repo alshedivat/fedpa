@@ -46,6 +46,6 @@ class ShrinkageMomentEstimator(MomentEstimator):
     def estimate_cov(self, samples: jnp.ndarray):
         """Estimates the covariance matrix using shrinkage."""
         n, d = samples.shape
-        shrinkage_rho = 1 / 1 + (n - 1) * self.rho
+        shrinkage_rho = 1 / (1 + (n - 1) * self.rho)
         sample_cov = jnp.cov(samples, rowvar=False)
         return shrinkage_rho * jnp.eye(d) + (1 - shrinkage_rho) * sample_cov

@@ -36,7 +36,7 @@ def _solve_sgd(
     init_state: jnp.ndarray,
     init_momentum: jnp.ndarray,
     **kwargs,
-):
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Runs SGD on a stochastic objective for the specified number of steps."""
 
     @jit
@@ -67,7 +67,7 @@ def solve_sgd(
     steps: int,
     momentum: float = 0.0,
     noise_scale: float = 0.0,
-):
+) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
     """Runs SGD on a stochastic objective for the specified number of steps.
 
     If multiple initial states and momenta provided, runs a solver for each
