@@ -76,7 +76,6 @@ def _setup():
 class MBSGDTests(absltest.TestCase):
     def test_mb_sgd_end_to_end(self):
         np.random.seed(0)
-        seed = np.random.randint(1000)
 
         (
             num_rounds,
@@ -97,13 +96,17 @@ class MBSGDTests(absltest.TestCase):
             server_learning_rate_schedule=server_lr_schedule,
             client_momentum=client_momentum,
             server_momentum=server_momentum,
-            seed=seed,
         )
 
         prng_key = random.PRNGKey(np.random.randint(1000))
-        init_state = random.normal(prng_key, (client_objectives[0].dim,))
+        prng_key, subkey = random.split(prng_key)
+        init_state = random.normal(subkey, (client_objectives[0].dim,))
         trajectory, _ = fed_learn(
-            client_objectives, init_state, num_rounds, num_clients_per_round
+            client_objectives,
+            init_state,
+            prng_key,
+            num_rounds,
+            num_clients_per_round,
         )
         final_state = trajectory[-1].x
 
@@ -115,7 +118,6 @@ class MBSGDTests(absltest.TestCase):
 class FedAvgTests(absltest.TestCase):
     def test_fed_avg_end_to_end(self):
         np.random.seed(0)
-        seed = np.random.randint(1000)
 
         (
             num_rounds,
@@ -136,13 +138,17 @@ class FedAvgTests(absltest.TestCase):
             server_learning_rate_schedule=server_lr_schedule,
             client_momentum=client_momentum,
             server_momentum=server_momentum,
-            seed=seed,
         )
 
         prng_key = random.PRNGKey(np.random.randint(1000))
-        init_state = random.normal(prng_key, (client_objectives[0].dim,))
+        prng_key, subkey = random.split(prng_key)
+        init_state = random.normal(subkey, (client_objectives[0].dim,))
         trajectory, _ = fed_learn(
-            client_objectives, init_state, num_rounds, num_clients_per_round
+            client_objectives,
+            init_state,
+            prng_key,
+            num_rounds,
+            num_clients_per_round,
         )
         final_state = trajectory[-1].x
 
@@ -154,7 +160,6 @@ class FedAvgTests(absltest.TestCase):
 class PostAvgTests(absltest.TestCase):
     def test_post_avg_exact_end_to_end(self):
         np.random.seed(0)
-        seed = np.random.randint(1000)
         num_client_samples_per_round = 10
 
         (
@@ -174,13 +179,17 @@ class PostAvgTests(absltest.TestCase):
             client_num_samples_per_round=num_client_samples_per_round,
             server_learning_rate_schedule=server_lr_schedule,
             server_momentum=server_momentum,
-            seed=seed,
         )
 
         prng_key = random.PRNGKey(np.random.randint(1000))
-        init_state = random.normal(prng_key, (client_objectives[0].dim,))
+        prng_key, subkey = random.split(prng_key)
+        init_state = random.normal(subkey, (client_objectives[0].dim,))
         trajectory, _ = fed_learn(
-            client_objectives, init_state, num_rounds, num_clients_per_round
+            client_objectives,
+            init_state,
+            prng_key,
+            num_rounds,
+            num_clients_per_round,
         )
         final_state = trajectory[-1].x
 
@@ -190,7 +199,6 @@ class PostAvgTests(absltest.TestCase):
 
     def test_post_avg_iasg_end_to_end(self):
         np.random.seed(0)
-        seed = np.random.randint(1000)
 
         (
             num_rounds,
@@ -215,13 +223,17 @@ class PostAvgTests(absltest.TestCase):
             server_learning_rate_schedule=server_lr_schedule,
             server_momentum=server_momentum,
             shrinkage_rho=0.01,
-            seed=seed,
         )
 
         prng_key = random.PRNGKey(np.random.randint(1000))
-        init_state = random.normal(prng_key, (client_objectives[0].dim,))
+        prng_key, subkey = random.split(prng_key)
+        init_state = random.normal(subkey, (client_objectives[0].dim,))
         trajectory, _ = fed_learn(
-            client_objectives, init_state, num_rounds, num_clients_per_round
+            client_objectives,
+            init_state,
+            prng_key,
+            num_rounds,
+            num_clients_per_round,
         )
         final_state = trajectory[-1].x
 

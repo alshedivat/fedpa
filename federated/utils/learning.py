@@ -70,6 +70,7 @@ FederatedLearningFn = Callable[
     [
         List[StochasticObjective],  # a list of client objectives
         jnp.ndarray,  # initial state
+        jnp.ndarray,  # prng key
         int,  # number of round
         int,  # number of clients per round
     ],
@@ -370,7 +371,6 @@ def create_mb_sgd(
     server_learning_rate_schedule: Callable[[int], float],
     client_momentum: float = 0.0,
     server_momentum: float = 0.0,
-    seed: int = 0,
 ) -> FederatedLearningFn:
     """Creates a MB-SGD federated learner.
 
@@ -385,7 +385,6 @@ def create_mb_sgd(
         server_learning_rate_schedule: The schedule for server learning rate.
         client_momentum: The momentum used by client optimizers.
         server_momentum: The momentum used by the server optimizer.
-        seed: The random seed.
 
     Returns:
         A federated learning function.
@@ -421,6 +420,7 @@ def create_mb_sgd(
     def _fed_learn(
         client_objectives: List[StochasticObjective],
         init_state: jnp.ndarray,
+        prng_key: jnp.ndarray,
         num_rounds: int,
         num_clients_per_round: int,
     ) -> Tuple[List[ServerState], List[RoundInfo]]:
@@ -429,7 +429,7 @@ def create_mb_sgd(
             client_update_fn=_client_update_fn,
             server_update_fn=_server_update_fn,
             sample_clients_fn=sample_clients_uniformly,
-            prng_key=random.PRNGKey(seed),
+            prng_key=prng_key,
             init_state=init_state,
             num_rounds=num_rounds,
             num_clients_per_round=num_clients_per_round,
@@ -445,7 +445,6 @@ def create_fed_avg(
     server_learning_rate_schedule: Callable[[int], float],
     client_momentum: float = 0.0,
     server_momentum: float = 0.0,
-    seed: int = 0,
 ) -> FederatedLearningFn:
     """Creates a generalized FedAvg.
 
@@ -455,7 +454,6 @@ def create_fed_avg(
         server_learning_rate_schedule: The schedule for server learning rate.
         client_momentum: The momentum used by client optimizers.
         server_momentum: The momentum used by the server optimizer.
-        seed: The random seed.
 
     Returns:
         A federated learning function.
@@ -491,6 +489,7 @@ def create_fed_avg(
     def _fed_learn(
         client_objectives: List[StochasticObjective],
         init_state: jnp.ndarray,
+        prng_key: jnp.ndarray,
         num_rounds: int,
         num_clients_per_round: int,
     ) -> Tuple[List[ServerState], List[RoundInfo]]:
@@ -499,7 +498,7 @@ def create_fed_avg(
             client_update_fn=_client_update_fn,
             server_update_fn=_server_update_fn,
             sample_clients_fn=sample_clients_uniformly,
-            prng_key=random.PRNGKey(seed),
+            prng_key=prng_key,
             init_state=init_state,
             num_rounds=num_rounds,
             num_clients_per_round=num_clients_per_round,
@@ -514,7 +513,6 @@ def create_post_avg_exact(
     server_learning_rate_schedule: Callable[[int], float],
     server_momentum: float = 0.0,
     shrinkage_rho: float = 0.0,
-    seed: int = 0,
     use_dp: bool = False,
 ) -> FederatedLearningFn:
     """Creates a FedPostAvg with exact local posterior sampling.
@@ -525,7 +523,6 @@ def create_post_avg_exact(
         server_learning_rate_schedule: The schedule for server learning rate.
         server_momentum: The momentum used by the server optimizer.
         shrinkage_rho: The shrinkage parameter for covariance estimation.
-        seed: The random seed.
         use_dp: Whether to use dynamic programming for computing client deltas.
     Returns:
         A federated learning function.
@@ -563,6 +560,7 @@ def create_post_avg_exact(
     def _fed_learn(
         client_objectives: List[StochasticObjective],
         init_state: jnp.ndarray,
+        prng_key: jnp.ndarray,
         num_rounds: int,
         num_clients_per_round: int,
     ) -> Tuple[List[ServerState], List[RoundInfo]]:
@@ -571,7 +569,7 @@ def create_post_avg_exact(
             client_update_fn=_client_update_fn,
             server_update_fn=_server_update_fn,
             sample_clients_fn=sample_clients_uniformly,
-            prng_key=random.PRNGKey(seed),
+            prng_key=prng_key,
             init_state=init_state,
             num_rounds=num_rounds,
             num_clients_per_round=num_clients_per_round,
@@ -591,7 +589,6 @@ def create_post_avg_iasg(
     server_learning_rate_schedule: Callable[[int], float],
     server_momentum: float = 0.0,
     shrinkage_rho: float = 0.0,
-    seed: int = 0,
     use_dp: bool = False,
 ) -> FederatedLearningFn:
     """Creates a FedPostAvg with IASG-based local posterior sampling.
@@ -606,7 +603,6 @@ def create_post_avg_iasg(
         server_learning_rate_schedule: The schedule for server learning rate.
         server_momentum: The momentum used by the server optimizer.
         shrinkage_rho: The shrinkage parameter for covariance estimation.
-        seed: The random seed.
         use_dp: Whether to use dynamic programming for computing client deltas.
 
     Returns:
@@ -651,6 +647,7 @@ def create_post_avg_iasg(
     def _fed_learn(
         client_objectives: List[StochasticObjective],
         init_state: jnp.ndarray,
+        prng_key: jnp.ndarray,
         num_rounds: int,
         num_clients_per_round: int,
     ) -> Tuple[List[ServerState], List[RoundInfo]]:
@@ -659,7 +656,7 @@ def create_post_avg_iasg(
             client_update_fn=_client_update_fn,
             server_update_fn=_server_update_fn,
             sample_clients_fn=sample_clients_uniformly,
-            prng_key=random.PRNGKey(seed),
+            prng_key=prng_key,
             init_state=init_state,
             num_rounds=num_rounds,
             num_clients_per_round=num_clients_per_round,
