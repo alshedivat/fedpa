@@ -21,7 +21,7 @@ from absl.testing import absltest
 from jax import random
 
 from ..objectives.quadratic import Quadratic, create_random_least_squares
-from .sampling import IASG, ExactQuadraticSampler
+from .sampling import EQS, IASG
 
 FLAGS = flags.FLAGS
 
@@ -38,7 +38,7 @@ class ExactQuadraticSamplerTests(absltest.TestCase):
 
         num_samples = 10000
         prng_key = random.PRNGKey(0)
-        sampler = ExactQuadraticSampler()
+        sampler = EQS()
         samples = sampler.sample(
             objective=obj, prng_key=prng_key, num_samples=num_samples
         )

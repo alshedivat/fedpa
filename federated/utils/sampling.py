@@ -20,11 +20,38 @@ from typing import Optional, Union
 
 import attr
 import jax.numpy as jnp
+import jax.scipy as jsp
 from jax import random
 
 from ..objectives.base import Objective, StochasticObjective
-from ..objectives.quadratic import Quadratic
+from ..objectives.quadratic import LeastSquares, Quadratic
 from .optimization import solve_sgd
+
+
+def compute_ess(
+    objective: Union[Objective, StochasticObjective], samples: jnp.ndarray
+) -> jnp.ndarray:
+    """Computes the Kish's effective sample size (ESS).
+
+    The computation is carried out in the log space for numerical stability.
+
+    Args:
+        objective: An objective function used as the negative log-probability.
+        samples: An array of samples.
+
+    Returns:
+        The ESS of the samples under the probability specified by the objective.
+    """
+    neg_log_prob = objective
+    if isinstance(objective, StochasticObjective):
+
+        def neg_log_prob(x):
+            return objective(x, random.PRNGKey(0), deterministic=True)
+
+    log_probs = -neg_log_prob(samples)
+    log_num = 2 * jsp.special.logsumexp(log_probs)
+    log_denom = jsp.special.logsumexp(2 * log_probs)
+    return jnp.exp(log_num - log_denom)
 
 
 class PosteriorSampler(abc.ABC):
@@ -47,13 +74,13 @@ class ExactQuadraticSampler(PosteriorSampler):
 
     def sample(
         self,
-        objective: Union[Objective, StochasticObjective],
+        objective: Union[Quadratic, LeastSquares],
         prng_key: jnp.ndarray,
         num_samples: int = 1,
         **_unused_kwargs,
     ) -> jnp.ndarray:
         """Generates exact samples from a quadratic posterior (Gaussian)."""
-        if isinstance(objective, StochasticObjective):
+        if isinstance(objective, LeastSquares):
             objective = Quadratic.from_least_squares(objective)
         state_mean = objective.solve()
         state_cov = jnp.linalg.pinv(objective.A)
