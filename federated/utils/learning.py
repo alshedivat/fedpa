@@ -14,13 +14,14 @@
 # limitations under the License.
 """Utils for federated learning."""
 
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import attr
 import jax.numpy as jnp
 from jax import random
 
 from ..objectives.base import StochasticObjective
+from ..objectives.quadratic import LeastSquares, Quadratic
 from .averaging import compute_weighted_average
 from .moments import MomentEstimator, ShrinkageMomentEstimator
 from .optimization import solve_sgd
@@ -152,6 +153,28 @@ def fed_opt(
         info.append(round_info)
 
     return trajectory, info
+
+
+def compute_exact_delta(
+    objective: Union[Quadratic, LeastSquares], init_state: jnp.ndarray
+):
+    """Computes the client delta exactly for a quadratic objective.
+
+    The delta is computed as `Sigma^{-1} (init_state - mu)`, where `Sigma` is
+    the exact posterior variance and mu is the exact posterior mean.
+
+    Args:
+        objective: A quadratic objective function.
+        init_state: The initial state for which the exact delta is computed.
+    """
+    # Convert objective to Quadratic, if necessary.
+    if isinstance(objective, LeastSquares):
+        objective = Quadratic.from_least_squares(objective)
+
+    posterior_mean = objective.solve()
+    posterior_cov_inv = objective.A
+
+    return jnp.dot(posterior_cov_inv, init_state - posterior_mean)
 
 
 def compute_fed_avg_delta(
