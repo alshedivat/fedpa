@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Utility functions for objective optimization."""
+"""Functions for objective optimization."""
 
 import functools
 from typing import Callable, Tuple, Type, Union
@@ -21,41 +21,6 @@ import jax.numpy as jnp
 from jax import jit, lax, random, vmap
 
 from ..objectives.base import Dataset, StochasticObjective
-
-
-@functools.partial(jit, static_argnums=(0, 1, 2))
-def _solve_sgd(
-    learning_rate_schedule: Callable[[int], float],
-    objective_type: Type[StochasticObjective],
-    batch_size: int,
-    data: Dataset,
-    steps: int,
-    momentum: float,
-    noise_scale: float,
-    prng_key: jnp.ndarray,
-    init_state: jnp.ndarray,
-    init_momentum: jnp.ndarray,
-    **kwargs,
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Runs SGD on a stochastic objective for the specified number of steps."""
-
-    @jit
-    def _sgd_step(i, inputs):
-        """Performs a single step of SGD."""
-        x, v, x_avg, prng_key = inputs
-        prng_key, prng_key_sg, prng_key_noise = random.split(prng_key, 3)
-        sg = objective_type._grad(batch_size, data, prng_key_sg, x, **kwargs)
-        sg_noise = noise_scale * random.normal(prng_key_noise, sg.shape)
-        sg = sg + sg_noise * jnp.sqrt(2.0 / learning_rate_schedule(i))
-        v = momentum * v + sg
-        x = x - learning_rate_schedule(i) * v
-        x_avg = (x_avg * i + x) / (i + 1)
-        return x, v, x_avg, prng_key
-
-    init_state_avg = jnp.zeros_like(init_state, dtype=jnp.float32)
-    inputs = (init_state, init_momentum, init_state_avg, prng_key)
-    x, v, x_avg, _ = lax.fori_loop(0, steps, _sgd_step, inputs)
-    return x, v, x_avg
 
 
 def solve_sgd(
@@ -129,3 +94,36 @@ def solve_sgd(
     if squeeze:
         xs, vs, x_avgs = map(jnp.squeeze, (xs, vs, x_avgs))
     return (xs, vs), x_avgs
+
+
+@functools.partial(jit, static_argnums=(0, 1, 2))
+def _solve_sgd(
+    learning_rate_schedule: Callable[[int], float],
+    objective_type: Type[StochasticObjective],
+    batch_size: int,
+    data: Dataset,
+    steps: int,
+    momentum: float,
+    noise_scale: float,
+    prng_key: jnp.ndarray,
+    init_state: jnp.ndarray,
+    init_momentum: jnp.ndarray,
+    **kwargs,
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    @jit
+    def _sgd_step(i, inputs):
+        """Performs a single step of SGD."""
+        x, v, x_avg, prng_key = inputs
+        prng_key, prng_key_sg, prng_key_noise = random.split(prng_key, 3)
+        sg = objective_type._grad(batch_size, data, prng_key_sg, x, **kwargs)
+        sg_noise = noise_scale * random.normal(prng_key_noise, sg.shape)
+        sg = sg + sg_noise * jnp.sqrt(2.0 / learning_rate_schedule(i))
+        v = momentum * v + sg
+        x = x - learning_rate_schedule(i) * v
+        x_avg = (x_avg * i + x) / (i + 1)
+        return x, v, x_avg, prng_key
+
+    init_state_avg = jnp.zeros_like(init_state, dtype=jnp.float32)
+    inputs = (init_state, init_momentum, init_state_avg, prng_key)
+    x, v, x_avg, _ = lax.fori_loop(0, steps, _sgd_step, inputs)
+    return x, v, x_avg

@@ -18,7 +18,6 @@ import jax.numpy as jnp
 import numpy as np
 from absl import flags
 from absl.testing import absltest
-from jax import random
 
 from ..objectives.quadratic import (
     Quadratic,
