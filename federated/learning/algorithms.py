@@ -356,16 +356,16 @@ def create_fed_avg(
 
 def create_post_avg_exact(
     *,
-    client_num_samples_per_round: int,
+    client_samples_per_round: int,
     server_learning_rate_schedule: Callable[[int], float],
     server_momentum: float = 0.0,
     shrinkage_rho: float = 0.0,
-    use_dp: bool = False,
+    use_dp: bool = True,
 ) -> FederatedLearningFn:
     """Creates a FedPostAvg with exact local posterior sampling.
 
     Args:
-        client_num_samples_per_round: The number of posterior samples used by
+        client_samples_per_round: The number of posterior samples used by
             clients at each round to compute model deltas.
         server_learning_rate_schedule: The schedule for server learning rate.
         server_momentum: The momentum used by the server optimizer.
@@ -375,21 +375,31 @@ def create_post_avg_exact(
         A federated learning function.
     """
     posterior_sampler = ExactQuadraticSampler()
-    moment_estimator = ShrinkageMomentEstimator(rho=shrinkage_rho)
+    moment_estimator = ShrinkageMomentEstimator(rho_fn=lambda _: shrinkage_rho)
 
     def _client_update_fn(
         objective: StochasticObjective,
         init_state: jnp.ndarray,
         prng_key: jnp.ndarray,
     ) -> jnp.ndarray:
-        return compute_post_avg_delta(
-            objective=objective,
-            init_state=init_state,
-            prng_key=prng_key,
-            num_samples=client_num_samples_per_round,
-            sampler=posterior_sampler,
-            moment_estimator=moment_estimator,
-        )
+        if use_dp:
+            return compute_post_avg_delta_dp(
+                objective=objective,
+                init_state=init_state,
+                prng_key=prng_key,
+                num_samples=client_samples_per_round,
+                sampler=posterior_sampler,
+                rho_fn=lambda _: shrinkage_rho,
+            )
+        else:
+            return compute_post_avg_delta(
+                objective=objective,
+                init_state=init_state,
+                prng_key=prng_key,
+                num_samples=client_samples_per_round,
+                sampler=posterior_sampler,
+                moment_estimator=moment_estimator,
+            )
 
     def _server_update_fn(
         client_deltas: List[jnp.ndarray],
@@ -436,7 +446,7 @@ def create_post_avg_iasg(
     server_learning_rate_schedule: Callable[[int], float],
     server_momentum: float = 0.0,
     shrinkage_rho: float = 0.0,
-    use_dp: bool = False,
+    use_dp: bool = True,
 ) -> FederatedLearningFn:
     """Creates a FedPostAvg with IASG-based local posterior sampling.
 
@@ -462,21 +472,31 @@ def create_post_avg_iasg(
         discard_steps=client_iasg_discard_steps,
         momentum=client_iasg_momentum,
     )
-    moment_estimator = ShrinkageMomentEstimator(rho=shrinkage_rho)
+    moment_estimator = ShrinkageMomentEstimator(rho_fn=lambda _: shrinkage_rho)
 
     def _client_update_fn(
         objective: StochasticObjective,
         init_state: jnp.ndarray,
         prng_key: jnp.ndarray,
     ) -> jnp.ndarray:
-        return compute_post_avg_delta(
-            objective=objective,
-            init_state=init_state,
-            prng_key=prng_key,
-            num_samples=client_samples_per_round,
-            sampler=posterior_sampler,
-            moment_estimator=moment_estimator,
-        )
+        if use_dp:
+            return compute_post_avg_delta_dp(
+                objective=objective,
+                init_state=init_state,
+                prng_key=prng_key,
+                num_samples=client_samples_per_round,
+                sampler=posterior_sampler,
+                rho_fn=lambda _: shrinkage_rho,
+            )
+        else:
+            return compute_post_avg_delta(
+                objective=objective,
+                init_state=init_state,
+                prng_key=prng_key,
+                num_samples=client_samples_per_round,
+                sampler=posterior_sampler,
+                moment_estimator=moment_estimator,
+            )
 
     def _server_update_fn(
         client_deltas: List[jnp.ndarray],

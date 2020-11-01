@@ -16,6 +16,7 @@
 
 import abc
 import functools
+from typing import Callable
 
 import attr
 import jax.numpy as jnp
@@ -40,12 +41,13 @@ class MomentEstimator(abc.ABC):
 class ShrinkageMomentEstimator(MomentEstimator):
     """An estimator that uses shrinkage for estimation of the covariance."""
 
-    rho: float = attr.ib()
+    rho_fn: Callable[[jnp.ndarray], float] = attr.ib()
 
     @functools.partial(jit, static_argnums=(0,))
     def estimate_cov(self, samples: jnp.ndarray):
         """Estimates the covariance matrix using shrinkage."""
         n, d = samples.shape
-        shrinkage_rho = 1 / (1 + (n - 1) * self.rho)
+        rho = self.rho_fn(samples)
+        shrinkage_rho = 1 / (1 + (n - 1) * rho)
         sample_cov = jnp.cov(samples, rowvar=False)
         return shrinkage_rho * jnp.eye(d) + (1 - shrinkage_rho) * sample_cov

@@ -14,6 +14,7 @@
 # limitations under the License.
 """Functions for local posterior inference."""
 
+from collections import defaultdict
 from typing import Callable, Union
 
 import jax.numpy as jnp
@@ -173,7 +174,7 @@ def compute_post_avg_delta_dp(
     num_samples: int,
     *,
     sampler: PosteriorSampler,
-    rho: float,
+    rho_fn: Callable[[jnp.ndarray], float],
 ) -> jnp.ndarray:
     """Computes posterior delta for the given objective and initial state.
 
@@ -188,7 +189,7 @@ def compute_post_avg_delta_dp(
         prng_key: A key for random number generation.
         num_samples: The number of samples to collect for estimation.
         sampler: A posterior sampler.
-        rho: The shrinkage hyperparameter.
+        rho_fn: An estimator for the shrinkage parameter.
 
     Returns:
         The computed client delta.
@@ -199,6 +200,27 @@ def compute_post_avg_delta_dp(
     )
 
     # Compute delta from the samples using dynamic programming.
-    # TODO: add implementation.
+    rho = rho_fn(samples)
+    dp = defaultdict(list)
+    samples_ra = samples[0]
+    delta = init_state - samples_ra
+    for t, s in enumerate(samples[1:], 2):
+        u = v = s - samples_ra
+        # Compute v_{t-1,t} (solution of `sigma_{t-1} x = u_t`).
+        for k, (v_k, dot_uk_vk) in enumerate(zip(dp["v"], dp["dot_u_v"]), 2):
+            gamma_k = rho * (k - 1) / k
+            v = v - gamma_k * jnp.dot(v_k, u) / (1 + gamma_k * dot_uk_vk) * v_k
+        # Compute `dot(u_t, v_t)` and `dot(u_t, delta_t)`.
+        dot_u_v = jnp.dot(u, v)
+        dot_u_d = jnp.dot(u, delta)
+        # Compute delta.
+        gamma = rho * (t - 1) / t
+        c = gamma * (t * dot_u_d - dot_u_v) / (1 + gamma * dot_u_v)
+        delta -= (1 + c) * v / t
+        # Update the DP state.
+        dp["v"].append(v)
+        dp["dot_u_v"].append(dot_u_v)
+        # Update running mean of the samples.
+        samples_ra = ((t - 1) * samples_ra + s) / t
 
-    return init_state - jnp.mean(samples, axis=0)
+    return delta * (1 + (num_samples - 1) * rho)

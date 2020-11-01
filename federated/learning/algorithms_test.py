@@ -176,7 +176,7 @@ class PostAvgTests(absltest.TestCase):
         ) = _setup()
 
         fed_learn = create_post_avg_exact(
-            client_num_samples_per_round=num_client_samples_per_round,
+            client_samples_per_round=num_client_samples_per_round,
             server_learning_rate_schedule=server_lr_schedule,
             server_momentum=server_momentum,
         )
