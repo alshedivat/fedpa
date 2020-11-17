@@ -111,6 +111,9 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
     discard_steps: int = attr.ib(default=0)
     momentum: float = attr.ib(default=0.0)
 
+    def __attrs_post_init__(self):
+        self._lr_schedule = lambda _: self.learning_rate
+
     def sample(
         self,
         objective: Union[Objective, StochasticObjective],
@@ -127,9 +130,6 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
                 jnp.expand_dims(init_state, axis=0), (parallel_chains, 1)
             )
 
-        def _lr_schedule(_):
-            return self.learning_rate
-
         # Burn-in.
         prng_key, subkey = random.split(prng_key)
         (xs, vs), _ = solve_sgd(
@@ -137,7 +137,7 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
             prng_key=subkey,
             init_states=init_states,
             steps=self.burnin_steps,
-            learning_rate_schedule=_lr_schedule,
+            learning_rate_schedule=self._lr_schedule,
             momentum=self.momentum,
             noise_scale=noise_scale,
         )
@@ -152,7 +152,7 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
                 prng_key=subkey,
                 init_states=(xs[:batch_size], vs[:batch_size]),
                 steps=self.avg_steps,
-                learning_rate_schedule=_lr_schedule,
+                learning_rate_schedule=self._lr_schedule,
                 momentum=self.momentum,
                 noise_scale=noise_scale,
             )
@@ -165,7 +165,7 @@ class IterateAveragedStochasticGradientSampler(PosteriorSampler):
                     prng_key=subkey,
                     init_states=(xs, vs),
                     steps=self.discard_steps,
-                    learning_rate_schedule=_lr_schedule,
+                    learning_rate_schedule=self._lr_schedule,
                     momentum=self.momentum,
                     noise_scale=noise_scale,
                 )
