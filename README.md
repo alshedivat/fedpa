@@ -23,7 +23,7 @@ All the code is located under the `federated` folder and organized into multiple
 Our minimalistic library is implemented in a functional style.
 The main learning function is [`fed_opt`](https://github.com/alshedivat/fedpa/blob/master/federated/learning/algorithms.py#L85-L158) (defined in `federated.learning.algorithms`), which implements the generalized federated optimization (corresponds to Algorithm 1 in [our paper](https://arxiv.org/abs/2010.05273), originally proposed by [Reddi*, Charles*, et al. (2020)](https://arxiv.org/abs/2003.00295)).
 `fed_opt` takes `client_update_fn` and `server_update_fn` functions as arguments, which are used for computing client and server updates, respectively.
-FedAvg and FedPA are implemented by providing the corresponding `client_update_fn` and `server_update_fn` arguments.
+FedAvg and FedPA are implemented by providing the corresponding `client_update_fn` and `server_update_fn` arguments to `fed_opt`.
 
 ## FAQ
 
