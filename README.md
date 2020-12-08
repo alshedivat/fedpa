@@ -5,7 +5,7 @@
 
 ![FedAvg vs. FedPA](/assets/fedavg-vs-fedpa.gif)
 
-This repository contains a minimalistic (yet general and modular) JAX implementation of federated posterior averaging (FedPA) algorithm along with a variety of simulation experiments on synthetically generated problems.
+This repository contains a minimalistic (yet general and modular) [JAX](https://github.com/google/jax) implementation of federated posterior averaging (FedPA) algorithm along with a variety of simulation experiments on synthetically generated problems.
 
 ## Usage
 The easiest way to reproduce our experiments and/or compare FedAvg and FedPA is by using the colab notebook provided in this repository (simply click the `Open in Colab` button at the top of README).
