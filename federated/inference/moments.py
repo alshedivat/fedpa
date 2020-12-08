@@ -43,7 +43,6 @@ class ShrinkageMomentEstimator(MomentEstimator):
 
     rho_fn: Callable[[jnp.ndarray], float] = attr.ib()
 
-    @functools.partial(jit, static_argnums=(0,))
     def estimate_cov(self, samples: jnp.ndarray):
         """Estimates the covariance matrix using shrinkage."""
         n, d = samples.shape
