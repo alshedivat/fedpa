@@ -89,7 +89,7 @@ class Objective(abc.ABC):
         pass
 
 
-@attr.s
+@attr.s(eq=False)
 class StochasticObjective(abc.ABC):
     """Abstract base class for stochastic objective functions.
 

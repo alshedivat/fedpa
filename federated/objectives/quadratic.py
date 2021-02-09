@@ -26,7 +26,7 @@ from sklearn import datasets
 from .base import Dataset, Objective, ObjectiveParams, StochasticObjective
 
 
-@attr.s
+@attr.s(eq=False)
 class LeastSquares(StochasticObjective):
     """A quadratic that represents a least squares problem.
 
@@ -63,7 +63,7 @@ class LeastSquares(StochasticObjective):
         return jnp.linalg.solve(A, b)
 
 
-@attr.s
+@attr.s(eq=False)
 class Quadratic(Objective):
     """Represents a quadratic objective `0.5 * x^T A x - b^T x + c`."""
 
