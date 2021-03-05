@@ -16,12 +16,13 @@
 
 import jax.numpy as jnp
 import numpy as np
+import numpyro.infer as infer
 from absl import flags
 from absl.testing import absltest
 from jax import random
 
 from ..objectives.quadratic import Quadratic, create_random_least_squares
-from .sampling import EQS, IASG
+from .sampling import EQS, HMC, IASG
 
 FLAGS = flags.FLAGS
 
@@ -79,6 +80,51 @@ class IASGSampler(absltest.TestCase):
             learning_rate=1.0,
             discard_steps=100,
         )
+        prng_key, subkey = random.split(prng_key)
+        init_state = random.normal(subkey, shape=(d,))
+        samples = sampler.sample(
+            objective=obj,
+            prng_key=prng_key,
+            init_state=init_state,
+            num_samples=num_samples,
+            parallel_chains=parallel_chains,
+        )
+        self.assertEqual(samples.shape[0], num_samples)
+
+        sample_mean = jnp.mean(samples, axis=0)
+        sample_cov = jnp.cov(samples, rowvar=False)
+        sample_cov /= jnp.trace(sample_cov)
+
+        sample_cov_fro_err = jnp.linalg.norm(sample_cov - posterior_cov, "fro")
+        np.testing.assert_allclose(sample_mean, opt, rtol=1e-1, atol=1e-1)
+        np.testing.assert_allclose(
+            sample_cov_fro_err, 0.0, rtol=1e-1, atol=1e-1
+        )
+
+
+class HMCSampler(absltest.TestCase):
+    def test_sample(self):
+        np.random.seed(0)
+        n, d = 1000, 5
+        batch_size = 10
+        num_samples = 1000
+        parallel_chains = 1
+
+        obj = create_random_least_squares(
+            num_objectives=1,
+            batch_size=batch_size,
+            n_features=(d - 1),
+            n_samples=(n,),
+            lam=1e-3,
+        )[0]
+        opt = obj.solve()
+        q_obj = Quadratic.from_least_squares(obj)
+        posterior_cov = jnp.linalg.pinv(q_obj.A)
+        posterior_cov /= jnp.trace(posterior_cov)
+
+        # Approximate sampling from the posterior.
+        prng_key = random.PRNGKey(0)
+        sampler = HMC(kernel=infer.NUTS, num_warmup=1000)
         prng_key, subkey = random.split(prng_key)
         init_state = random.normal(subkey, shape=(d,))
         samples = sampler.sample(

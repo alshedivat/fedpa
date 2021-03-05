@@ -15,12 +15,14 @@
 """Functions for posterior sampling."""
 
 import abc
+import functools
 import math
 from typing import Optional, Union
 
 import attr
 import jax.numpy as jnp
 import jax.scipy as jsp
+import numpyro.infer as infer
 from jax import random
 
 from ..objectives.base import Objective, StochasticObjective
@@ -90,7 +92,7 @@ class ExactQuadraticSampler(PosteriorSampler):
         return samples
 
 
-@attr.s
+@attr.s(eq=False)
 class IterateAveragedStochasticGradientSampler(PosteriorSampler):
     """A sampler that produces approximate samples using IASG.
 
@@ -179,23 +181,61 @@ class StochasticGradientLangevinDynamics(PosteriorSampler):
     # TODO: implement.
 
 
-@attr.s
+@attr.s(eq=False)
 class HamiltonianMonteCarlo(PosteriorSampler):
-    """A sampler that produces approximate samples using HMC."""
+    """A sampler that produces approximate samples using HMC and NUTS.
 
-    # TODO: implement.
+    This sampler uses NumPyro under the hood.
+    """
 
+    kernel: infer.mcmc.MCMCKernel = attr.ib()
+    num_warmup: int = attr.ib(default=100)
+    step_size: float = attr.ib(default=1.0)
+    adapt_step_size: bool = attr.ib(default=True)
+    adapt_mass_matrix: bool = attr.ib(default=True)
+    target_accept_prob: float = attr.ib(default=0.8)
+    use_nuts: bool = attr.ib(default=False)
+    mcmc: infer.MCMC = attr.ib(default=None, init=False)
 
-@attr.s
-class StochasticGradientHamiltonianMonteCarlo(PosteriorSampler):
-    """A sampler that produces approximate samples using SG-HMC."""
+    def sample(
+        self,
+        objective: Union[Objective, StochasticObjective],
+        prng_key: jnp.ndarray,
+        num_samples: int = 1,
+        parallel_chains: int = 1,
+        init_state: Optional[jnp.ndarray] = None,
+    ) -> jnp.ndarray:
+        # Make sure stochastic objectives are evaluated on the full data.
+        if isinstance(objective, StochasticObjective):
+            objective = functools.partial(
+                objective, prng_key=prng_key, deterministic=True
+            )
 
-    # TODO: implement.
+        if init_state is None:
+            init_state = jnp.squeeze(
+                jnp.zeros(
+                    (
+                        parallel_chains,
+                        objective.dim,
+                    )
+                )
+            )
+
+        # Instantiate and run MCMC.
+        self.mcmc = infer.MCMC(
+            self.kernel(potential_fn=objective),
+            num_warmup=self.num_warmup,
+            num_samples=num_samples,
+            num_chains=parallel_chains,
+            progress_bar=False,
+        )
+        self.mcmc.run(prng_key, init_params=init_state)
+
+        return self.mcmc.get_samples()
 
 
 # Aliases.
 EQS = ExactQuadraticSampler
 HMC = HamiltonianMonteCarlo
 SGLD = StochasticGradientLangevinDynamics
-SGHMC = StochasticGradientHamiltonianMonteCarlo
 IASG = IterateAveragedStochasticGradientSampler
