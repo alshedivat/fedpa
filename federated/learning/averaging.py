@@ -16,12 +16,8 @@
 
 from typing import List, Tuple
 
-import cvxpy as cp
 import jax.numpy as jnp
-import numpy as np
 from jax import jit
-
-from ..objectives.quadratic import Quadratic
 
 
 def compute_weighted_average(
@@ -37,74 +33,6 @@ def compute_weighted_average(
       A tuple of weighted average states and weights.
     """
     return jnp.einsum("ij,i->j", jnp.stack(states), weights / jnp.sum(weights))
-
-
-def compute_optimal_convex_average(
-    states: List[np.ndarray], objective: Quadratic, abstol: float = 1e-8
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Computes weighted average of the states that minimizes the objective.
-
-    The optimal weights are computed by solving a QP.
-
-    Args:
-      states: A list of arrays that represent states.
-      objective: The global quadratic objective.
-      abstol: Absolute value of the QP solver's tolerance.
-
-    Returns:
-      A tuple of weighted average states and optimal weights.
-    """
-    X = np.stack(states)
-    A, b = objective.A, objective.b
-
-    # Define the QP for optimal weights.
-    c = cp.Variable(len(states))
-    x = X.T @ c
-
-    # Solve QP.
-    qp_objective = cp.Minimize(0.5 * cp.quad_form(x, A) - b @ x)
-    constraints = [c >= 0, cp.sum(c) == 1]
-    prob = cp.Problem(qp_objective, constraints)
-    prob.solve()
-
-    optimal_weights = c.value
-    avg_state = x.value
-
-    return avg_state, optimal_weights
-
-
-def compute_optimal_hypercube_average(
-    states: List[np.ndarray], objective: Quadratic, abstol: float = 1e-8
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Computes an element-wise weighted average of the states that minimizes the objective.
-
-    The optimal weights are computed by solving a QP.
-
-    Args:
-      states: A list of arrays that represent states.
-      objective: The global quadratic objective.
-      abstol: Absolute value of the QP solver's tolerance.
-
-    Returns:
-      A tuple of weighted average states and optimal weights.
-    """
-    X = np.stack(states)
-    A, b, dim = objective.A, objective.b, objective.dim
-
-    # Define the QP for optimal weights.
-    c = cp.Variable((len(states), dim))
-    x = cp.sum(cp.multiply(X, c), axis=0)
-
-    # Solve QP.
-    qp_objective = cp.Minimize(0.5 * cp.quad_form(x, A) - b @ x)
-    constraints = [c >= 0, cp.sum(c, axis=0) == 1]
-    prob = cp.Problem(qp_objective, constraints)
-    prob.solve()
-
-    optimal_weights = c.value
-    avg_state = x.value
-
-    return avg_state, optimal_weights
 
 
 @jit
