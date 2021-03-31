@@ -8,7 +8,7 @@
 This repository contains a minimalistic (yet general and modular) [JAX](https://github.com/google/jax) implementation of federated posterior averaging (FedPA) algorithm along with a variety of simulation experiments on synthetically generated problems.
 
 ## Usage
-The easiest way to reproduce our experiments and/or compare FedAvg and FedPA is by using the colab notebook provided in this repository (simply click the `Open in Colab` button at the top of README).
+The easiest way to reproduce our synthetic experiments and/or compare FedAvg and FedPA is by using the colab notebook provided in this repository (simply click the `Open in Colab` button at the top of README).
 If you would like to use our JAX implementation of FedAvg or FedPA elsewhere, the `federated/` folder can be used a standalone Python package.
 
 ## Organization of the code
@@ -25,21 +25,18 @@ The main learning function is [`fed_opt`](https://github.com/alshedivat/fedpa/bl
 `fed_opt` takes `client_update_fn` and `server_update_fn` functions as arguments, which are used for computing client and server updates, respectively.
 FedAvg and FedPA are implemented by providing the corresponding `client_update_fn` and `server_update_fn` arguments to `fed_opt`.
 
-## FAQ
+## Reproducing results on FL benchmark tasks
 
-- **Q:** Is there a TensorFlow Federated (TFF) implementation of FedPA? <br>
-  **A:** Currently, TFF implementation is available in the `fedpa` branch of a mirror of [google-research/federated](https://github.com/alshedivat/federated-research/blob/fedpa/optimization/shared/post_avg.py).
-The code will be eventually released as a sub-project in the official [google-research/federated](https://github.com/google-research/federated).
-
-For any other questions, please feel free to raise an issue.
+This mini-library does NOT support running experiments on FL benchmark tasks such as EMNIST, CIFAR100, etc.
+If you would like to run FedPA on these benchmarks, please use our [TFF implementation](https://github.com/alshedivat/federated-research/tree/posterior_averaging/posterior_averaging), which is currently available in the `posterior_averaging` branch of a mirror of [google-research/federated](https://github.com/alshedivat/federated-research/tree/posterior_averaging), which will be hopefully merged into [google-research/federated](https://github.com/google-research/federated/pull/31).
 
 ## Citation
 ```bibtex
-@article{alshedivat2020federated,
+@inproceedings{alshedivat2021federated,
   title={Federated Learning via Posterior Averaging: A New Perspective and Practical Algorithms},
   author={Al-Shedivat, Maruan and Gillenwater, Jennifer and Xing, Eric and Rostamizadeh, Afshin},
-  journal={arXiv preprint arXiv:2010.05273},
-  year={2020}
+  booktitle={International Conference on Learning Representations (ICLR)},
+  year={2021}
 }
 ```
 
