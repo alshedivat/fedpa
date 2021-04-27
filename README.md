@@ -28,7 +28,7 @@ FedAvg and FedPA are implemented by providing the corresponding `client_update_f
 ## Reproducing results on FL benchmark tasks
 
 This mini-library does NOT support running experiments on FL benchmark tasks such as EMNIST, CIFAR100, etc.
-If you would like to run FedPA on these benchmarks, please use our [TFF implementation](https://github.com/alshedivat/federated-research/tree/posterior_averaging/posterior_averaging), which is currently available in the `posterior_averaging` branch of a mirror of [google-research/federated](https://github.com/alshedivat/federated-research/tree/posterior_averaging), which will be hopefully merged into [google-research/federated](https://github.com/google-research/federated/pull/31).
+If you would like to run FedPA on these benchmarks, please use our [TFF implementation](https://github.com/google-research/federated/tree/master/posterior_averaging).
 
 ## Citation
 ```bibtex
